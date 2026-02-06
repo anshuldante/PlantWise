@@ -17,8 +17,12 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 
 import com.anshul.plantwise.R;
+import com.anshul.plantwise.ai.AIProvider;
 import com.anshul.plantwise.ai.AIProviderException;
 import com.anshul.plantwise.ai.ClaudeProvider;
+import com.anshul.plantwise.ai.GeminiProvider;
+import com.anshul.plantwise.ai.OpenAIProvider;
+import com.anshul.plantwise.ai.PerplexityProvider;
 import com.anshul.plantwise.ai.PromptBuilder;
 import com.anshul.plantwise.data.db.AppDatabase;
 import com.anshul.plantwise.data.entity.Analysis;
@@ -63,6 +67,7 @@ public class AnalysisActivity extends AppCompatActivity {
     private MaterialButton retryButton;
 
     private Uri imageUri;
+    private Uri localImageUri; // Persistent local copy
     private String plantId;
     private PlantAnalysisResult analysisResult;
     private String rawResponse;
@@ -84,6 +89,8 @@ public class AnalysisActivity extends AppCompatActivity {
         if (uriString != null) {
             imageUri = Uri.parse(uriString);
             Glide.with(this).load(imageUri).centerCrop().into(imagePreview);
+            // Copy image to local storage immediately to preserve access
+            copyImageToLocal();
         }
 
         plantId = getIntent().getStringExtra(EXTRA_PLANT_ID);
@@ -96,6 +103,39 @@ public class AnalysisActivity extends AppCompatActivity {
         } else {
             startAnalysis();
         }
+    }
+
+    private void copyImageToLocal() {
+        executor.execute(() -> {
+            try {
+                java.io.File cacheDir = new java.io.File(getCacheDir(), "temp_images");
+                if (!cacheDir.exists()) {
+                    cacheDir.mkdirs();
+                }
+
+                String filename = "analysis_" + System.currentTimeMillis() + ".jpg";
+                java.io.File localFile = new java.io.File(cacheDir, filename);
+
+                try (java.io.InputStream in = getContentResolver().openInputStream(imageUri);
+                     java.io.OutputStream out = new java.io.FileOutputStream(localFile)) {
+                    if (in == null) {
+                        android.util.Log.e("AnalysisActivity", "Could not open input stream");
+                        return;
+                    }
+                    byte[] buf = new byte[4096];
+                    int len;
+                    while ((len = in.read(buf)) > 0) {
+                        out.write(buf, 0, len);
+                    }
+                }
+
+                localImageUri = Uri.fromFile(localFile);
+                android.util.Log.d("AnalysisActivity", "Image copied to: " + localImageUri);
+
+            } catch (Exception e) {
+                android.util.Log.e("AnalysisActivity", "Failed to copy image locally: " + e.getMessage());
+            }
+        });
     }
 
     private void initViews() {
@@ -122,13 +162,15 @@ public class AnalysisActivity extends AppCompatActivity {
     }
 
     private void promptForApiKey() {
+        String providerName = getProviderDisplayName();
+
         EditText input = new EditText(this);
         input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
         input.setHint(R.string.enter_api_key);
 
         new AlertDialog.Builder(this)
             .setTitle(R.string.api_key)
-            .setMessage("Enter your Claude API key to analyze plants")
+            .setMessage("Enter your " + providerName + " API key to analyze plants.\n\nYou can change the provider in Settings.")
             .setView(input)
             .setPositiveButton(R.string.save, (dialog, which) -> {
                 String key = input.getText().toString().trim();
@@ -143,6 +185,34 @@ public class AnalysisActivity extends AppCompatActivity {
             .setNegativeButton(R.string.cancel, (dialog, which) -> finish())
             .setCancelable(false)
             .show();
+    }
+
+    private String getProviderDisplayName() {
+        String provider = keystoreHelper.getProvider();
+        if (KeystoreHelper.PROVIDER_GEMINI.equals(provider)) {
+            return "Gemini";
+        } else if (KeystoreHelper.PROVIDER_CLAUDE.equals(provider)) {
+            return "Claude";
+        } else if (KeystoreHelper.PROVIDER_PERPLEXITY.equals(provider)) {
+            return "Perplexity";
+        } else {
+            return "OpenAI";
+        }
+    }
+
+    private AIProvider createProvider() {
+        String provider = keystoreHelper.getProvider();
+        String apiKey = keystoreHelper.getApiKey();
+
+        if (KeystoreHelper.PROVIDER_GEMINI.equals(provider)) {
+            return new GeminiProvider(apiKey);
+        } else if (KeystoreHelper.PROVIDER_CLAUDE.equals(provider)) {
+            return new ClaudeProvider(apiKey);
+        } else if (KeystoreHelper.PROVIDER_PERPLEXITY.equals(provider)) {
+            return new PerplexityProvider(apiKey);
+        } else {
+            return new OpenAIProvider(apiKey);
+        }
     }
 
     private void startAnalysis() {
@@ -166,7 +236,7 @@ public class AnalysisActivity extends AppCompatActivity {
 
                 String prompt = PromptBuilder.buildAnalysisPrompt(knownPlantName, previousAnalyses, null);
 
-                ClaudeProvider provider = new ClaudeProvider(keystoreHelper.getApiKey());
+                AIProvider provider = createProvider();
                 analysisResult = provider.analyzePhoto(base64Image, prompt);
 
                 runOnUiThread(this::displayResults);
@@ -352,6 +422,13 @@ public class AnalysisActivity extends AppCompatActivity {
     private void savePlant() {
         if (analysisResult == null) return;
 
+        // Use local copy if available, otherwise try original URI
+        Uri uriToSave = localImageUri != null ? localImageUri : imageUri;
+        if (uriToSave == null) {
+            Toast.makeText(this, "No image to save", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         saveButton.setEnabled(false);
         saveButton.setText("Saving...");
 
@@ -386,15 +463,21 @@ public class AnalysisActivity extends AppCompatActivity {
                     analysisResult.healthAssessment.score : 5;
                 plant.updatedAt = now;
 
-                // Save thumbnail
-                String thumbnailPath = ImageUtils.saveThumbnail(this, imageUri, plantId);
+                // Save thumbnail and photo using local copy
+                String thumbnailPath = null;
+                String photoPath = null;
+                try {
+                    thumbnailPath = ImageUtils.saveThumbnail(this, uriToSave, plantId);
+                    photoPath = ImageUtils.savePhoto(this, uriToSave, plantId);
+                } catch (IOException e) {
+                    // If image save fails, continue without thumbnail
+                    android.util.Log.e("AnalysisActivity", "Failed to save image: " + e.getMessage());
+                }
                 plant.thumbnailPath = thumbnailPath;
 
                 db.plantDao().insertPlant(plant);
 
-                // Save photo and analysis
-                String photoPath = ImageUtils.savePhoto(this, imageUri, plantId);
-
+                // Save analysis
                 Analysis analysis = new Analysis();
                 analysis.id = UUID.randomUUID().toString();
                 analysis.plantId = plantId;
@@ -411,7 +494,8 @@ public class AnalysisActivity extends AppCompatActivity {
                     finish();
                 });
 
-            } catch (IOException e) {
+            } catch (Exception e) {
+                android.util.Log.e("AnalysisActivity", "Save failed", e);
                 runOnUiThread(() -> {
                     saveButton.setEnabled(true);
                     saveButton.setText(R.string.save_to_library);
@@ -426,6 +510,13 @@ public class AnalysisActivity extends AppCompatActivity {
         super.onDestroy();
         if (executor != null) {
             executor.shutdown();
+        }
+        // Cleanup temporary image file
+        if (localImageUri != null) {
+            java.io.File tempFile = new java.io.File(localImageUri.getPath());
+            if (tempFile.exists()) {
+                tempFile.delete();
+            }
         }
     }
 }

@@ -12,7 +12,13 @@ import java.security.GeneralSecurityException;
 public class KeystoreHelper {
 
     private static final String PREFS_NAME = "plantwise_secure_prefs";
-    private static final String KEY_CLAUDE_API_KEY = "claude_api_key";
+    private static final String KEY_API_KEY = "api_key";
+    private static final String KEY_PROVIDER = "ai_provider";
+
+    public static final String PROVIDER_OPENAI = "openai";
+    public static final String PROVIDER_CLAUDE = "claude";
+    public static final String PROVIDER_PERPLEXITY = "perplexity";
+    public static final String PROVIDER_GEMINI = "gemini";
 
     private final SharedPreferences prefs;
 
@@ -38,11 +44,11 @@ public class KeystoreHelper {
     }
 
     public void saveApiKey(String apiKey) {
-        prefs.edit().putString(KEY_CLAUDE_API_KEY, apiKey).apply();
+        prefs.edit().putString(KEY_API_KEY, apiKey).apply();
     }
 
     public String getApiKey() {
-        return prefs.getString(KEY_CLAUDE_API_KEY, null);
+        return prefs.getString(KEY_API_KEY, null);
     }
 
     public boolean hasApiKey() {
@@ -51,6 +57,22 @@ public class KeystoreHelper {
     }
 
     public void clearApiKey() {
-        prefs.edit().remove(KEY_CLAUDE_API_KEY).apply();
+        prefs.edit().remove(KEY_API_KEY).apply();
+    }
+
+    public void saveProvider(String provider) {
+        prefs.edit().putString(KEY_PROVIDER, provider).apply();
+    }
+
+    public String getProvider() {
+        return prefs.getString(KEY_PROVIDER, PROVIDER_GEMINI);  // Default to Gemini (free tier)
+    }
+
+    public boolean isOpenAI() {
+        return PROVIDER_OPENAI.equals(getProvider());
+    }
+
+    public boolean isClaude() {
+        return PROVIDER_CLAUDE.equals(getProvider());
     }
 }

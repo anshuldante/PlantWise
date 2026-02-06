@@ -39,13 +39,39 @@
                     android:textAppearance="?attr/textAppearanceTitleMedium"
                     android:textColor="@color/md_theme_primary" />
 
-                <TextView
-                    android:layout_width="wrap_content"
+                <RadioGroup
+                    android:id="@+id/radio_provider"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="Claude (Anthropic)"
-                    android:textAppearance="?attr/textAppearanceBodyMedium"
-                    android:textColor="@color/text_secondary" />
+                    android:layout_marginTop="8dp"
+                    android:orientation="vertical">
+
+                    <com.google.android.material.radiobutton.MaterialRadioButton
+                        android:id="@+id/radio_gemini"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Gemini (Google) - Free!"
+                        android:checked="true" />
+
+                    <com.google.android.material.radiobutton.MaterialRadioButton
+                        android:id="@+id/radio_openai"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="ChatGPT (OpenAI)" />
+
+                    <com.google.android.material.radiobutton.MaterialRadioButton
+                        android:id="@+id/radio_claude"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Claude (Anthropic)" />
+
+                    <com.google.android.material.radiobutton.MaterialRadioButton
+                        android:id="@+id/radio_perplexity"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Perplexity" />
+
+                </RadioGroup>
 
                 <com.google.android.material.textfield.TextInputLayout
                     android:layout_width="match_parent"
@@ -103,10 +129,11 @@
                     android:textColor="@color/md_theme_onPrimaryContainer" />
 
                 <TextView
+                    android:id="@+id/api_key_info"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="Your API key is stored securely on your device using encrypted storage. It is never sent to any server except Anthropic\'s API for plant analysis."
+                    android:text="@string/api_key_info_openai"
                     android:textAppearance="?attr/textAppearanceBodySmall"
                     android:textColor="@color/md_theme_onPrimaryContainer" />
 

@@ -27,10 +27,14 @@
 
     <!-- Settings -->
     <string name="api_key">API Key</string>
-    <string name="enter_api_key">Enter your Claude API key</string>
+    <string name="enter_api_key">Enter your API key</string>
     <string name="save">Save</string>
     <string name="api_key_saved">API key saved</string>
     <string name="api_key_required">API key is required for analysis</string>
+    <string name="api_key_info_gemini">Get your FREE API key from aistudio.google.com. No credit card required! Your key is stored securely on your device.</string>
+    <string name="api_key_info_openai">Get your API key from platform.openai.com. Your key is stored securely on your device.</string>
+    <string name="api_key_info_claude">Get your API key from console.anthropic.com. Your key is stored securely on your device.</string>
+    <string name="api_key_info_perplexity">Get your API key from perplexity.ai/settings/api. Note: Perplexity may have limited image support.</string>
 
     <!-- General -->
     <string name="error">Error</string>
