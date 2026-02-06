@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+
+    <!-- PlantWise Color Palette -->
+    <color name="seed">#2E7D32</color>
+    <color name="surface_light">#FEFBF6</color>
+    <color name="health_good">#4CAF50</color>
+    <color name="health_warning">#FF9800</color>
+    <color name="health_bad">#F44336</color>
+    <color name="text_primary">#1B1B1B</color>
+    <color name="text_secondary">#5F6368</color>
+    <color name="card_background">#FFFFFF</color>
+
+    <!-- Material 3 theme colors -->
+    <color name="md_theme_primary">#2E7D32</color>
+    <color name="md_theme_onPrimary">#FFFFFF</color>
+    <color name="md_theme_primaryContainer">#A5F5AA</color>
+    <color name="md_theme_onPrimaryContainer">#002106</color>
+    <color name="md_theme_secondary">#52634F</color>
+    <color name="md_theme_onSecondary">#FFFFFF</color>
+    <color name="md_theme_background">#FEFBF6</color>
+    <color name="md_theme_onBackground">#1B1B1B</color>
+    <color name="md_theme_surface">#FEFBF6</color>
+    <color name="md_theme_onSurface">#1B1B1B</color>
+</resources>

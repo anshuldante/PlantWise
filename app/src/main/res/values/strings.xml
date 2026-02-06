@@ -1,0 +1,40 @@
+<resources>
+    <string name="app_name">PlantWise</string>
+
+    <!-- Navigation -->
+    <string name="nav_library">Library</string>
+    <string name="nav_camera">Camera</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- Library -->
+    <string name="empty_library_title">No plants yet</string>
+    <string name="empty_library_message">Take a photo of a plant to get started</string>
+    <string name="add_plant">Add Plant</string>
+
+    <!-- Camera -->
+    <string name="capture">Capture</string>
+    <string name="gallery">Gallery</string>
+    <string name="camera_permission_required">Camera permission is required</string>
+
+    <!-- Analysis -->
+    <string name="analyzing">Analyzing your plant...</string>
+    <string name="analysis_complete">Analysis Complete</string>
+    <string name="health_score">Health Score</string>
+    <string name="identification">Identification</string>
+    <string name="care_plan">Care Plan</string>
+    <string name="immediate_actions">Immediate Actions</string>
+    <string name="save_to_library">Save to Library</string>
+
+    <!-- Settings -->
+    <string name="api_key">API Key</string>
+    <string name="enter_api_key">Enter your Claude API key</string>
+    <string name="save">Save</string>
+    <string name="api_key_saved">API key saved</string>
+    <string name="api_key_required">API key is required for analysis</string>
+
+    <!-- General -->
+    <string name="error">Error</string>
+    <string name="retry">Retry</string>
+    <string name="cancel">Cancel</string>
+    <string name="ok">OK</string>
+</resources>
