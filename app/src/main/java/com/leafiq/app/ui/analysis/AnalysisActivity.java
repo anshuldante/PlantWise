@@ -26,6 +26,7 @@ import com.leafiq.app.ai.PerplexityProvider;
 import com.leafiq.app.ai.PromptBuilder;
 import com.leafiq.app.data.db.AppDatabase;
 import com.leafiq.app.data.entity.Analysis;
+import com.leafiq.app.data.entity.CareItem;
 import com.leafiq.app.data.entity.Plant;
 import com.leafiq.app.data.model.PlantAnalysisResult;
 import com.leafiq.app.util.ImageUtils;
@@ -498,6 +499,11 @@ public class AnalysisActivity extends AppCompatActivity {
 
                 db.analysisDao().insertAnalysis(analysis);
 
+                // Persist care items from AI analysis
+                if (analysisResult.carePlan != null) {
+                    insertCareItems(db, plantId, analysisResult.carePlan, now);
+                }
+
                 runOnUiThread(() -> {
                     Toast.makeText(this, "Plant saved to library!", Toast.LENGTH_SHORT).show();
                     finish();
@@ -512,6 +518,92 @@ public class AnalysisActivity extends AppCompatActivity {
                 });
             }
         });
+    }
+
+    private void insertCareItems(AppDatabase db, String plantId,
+                                 PlantAnalysisResult.CarePlan carePlan, long now) {
+        // Delete existing care items for this plant to avoid duplicates on re-analysis
+        // (CareItemDao doesn't have a deleteByPlantId, so we skip this for now --
+        //  insertCareItem uses OnConflictStrategy.REPLACE, and new UUIDs mean new rows.
+        //  Old rows will CASCADE delete if the plant is deleted.)
+
+        if (carePlan.watering != null && carePlan.watering.frequency != null) {
+            CareItem item = new CareItem();
+            item.id = UUID.randomUUID().toString();
+            item.plantId = plantId;
+            item.type = "water";
+            item.frequencyDays = parseFrequencyDays(carePlan.watering.frequency);
+            item.lastDone = now;
+            item.nextDue = now + (item.frequencyDays * 86400000L);
+            item.notes = carePlan.watering.amount;
+            if (carePlan.watering.notes != null) {
+                item.notes = (item.notes != null ? item.notes + " - " : "") + carePlan.watering.notes;
+            }
+            db.careItemDao().insertCareItem(item);
+        }
+
+        if (carePlan.fertilizer != null && carePlan.fertilizer.frequency != null) {
+            CareItem item = new CareItem();
+            item.id = UUID.randomUUID().toString();
+            item.plantId = plantId;
+            item.type = "fertilize";
+            item.frequencyDays = parseFrequencyDays(carePlan.fertilizer.frequency);
+            item.lastDone = now;
+            item.nextDue = now + (item.frequencyDays * 86400000L);
+            item.notes = carePlan.fertilizer.type;
+            db.careItemDao().insertCareItem(item);
+        }
+
+        if (carePlan.pruning != null && carePlan.pruning.needed) {
+            CareItem item = new CareItem();
+            item.id = UUID.randomUUID().toString();
+            item.plantId = plantId;
+            item.type = "prune";
+            item.frequencyDays = 30; // Default monthly for pruning
+            item.lastDone = now;
+            item.nextDue = now + (item.frequencyDays * 86400000L);
+            item.notes = carePlan.pruning.instructions;
+            db.careItemDao().insertCareItem(item);
+        }
+
+        if (carePlan.repotting != null && carePlan.repotting.needed) {
+            CareItem item = new CareItem();
+            item.id = UUID.randomUUID().toString();
+            item.plantId = plantId;
+            item.type = "repot";
+            item.frequencyDays = 365; // Default yearly for repotting
+            item.lastDone = now;
+            item.nextDue = now + (item.frequencyDays * 86400000L);
+            item.notes = carePlan.repotting.signs;
+            db.careItemDao().insertCareItem(item);
+        }
+    }
+
+    private int parseFrequencyDays(String frequency) {
+        if (frequency == null) return 7;
+        String lower = frequency.toLowerCase();
+
+        // Try to extract a number
+        try {
+            String numStr = lower.replaceAll("[^0-9]", "");
+            if (!numStr.isEmpty()) {
+                int num = Integer.parseInt(numStr);
+                if (lower.contains("week")) return num * 7;
+                if (lower.contains("month")) return num * 30;
+                if (lower.contains("day")) return num;
+                // Bare number, assume days
+                return Math.max(1, num);
+            }
+        } catch (NumberFormatException ignored) {}
+
+        // Keyword fallbacks
+        if (lower.contains("daily")) return 1;
+        if (lower.contains("weekly") || lower.contains("week")) return 7;
+        if (lower.contains("biweekly") || lower.contains("bi-weekly")) return 14;
+        if (lower.contains("monthly") || lower.contains("month")) return 30;
+        if (lower.contains("yearly") || lower.contains("annual")) return 365;
+
+        return 7; // Default to weekly
     }
 
     @Override
