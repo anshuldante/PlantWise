@@ -247,6 +247,29 @@ public class AnalysisActivity extends AppCompatActivity {
                 String prompt = PromptBuilder.buildAnalysisPrompt(knownPlantName, previousAnalyses, null);
 
                 AIProvider provider = createProvider();
+
+                // Check if provider supports vision (image analysis)
+                if (!provider.supportsVision()) {
+                    runOnUiThread(() -> {
+                        new AlertDialog.Builder(AnalysisActivity.this)
+                            .setTitle("Image Analysis Not Supported")
+                            .setMessage(provider.getDisplayName() + " doesn't support image analysis. "
+                                + "Please describe your plant or switch to another provider.")
+                            .setPositiveButton("OK", (dialog, which) -> {
+                                // Let user stay on screen - they can retry with different provider
+                                showError(provider.getDisplayName() + " is text-only. "
+                                    + "Switch to Claude, ChatGPT, or Gemini in Settings for image analysis.");
+                            })
+                            .setNeutralButton("Open Settings", (dialog, which) -> {
+                                // Navigate back so user can access settings
+                                finish();
+                            })
+                            .setCancelable(false)
+                            .show();
+                    });
+                    return; // Don't proceed with API call
+                }
+
                 analysisResult = provider.analyzePhoto(base64Image, prompt);
 
                 runOnUiThread(this::displayResults);
@@ -495,6 +518,7 @@ public class AnalysisActivity extends AppCompatActivity {
                 analysis.healthScore = plant.latestHealthScore;
                 analysis.summary = analysisResult.healthAssessment != null ?
                     analysisResult.healthAssessment.summary : "";
+                analysis.rawResponse = analysisResult.rawResponse;
                 analysis.createdAt = now;
 
                 db.analysisDao().insertAnalysis(analysis);
