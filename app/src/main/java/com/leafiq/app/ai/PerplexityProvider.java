@@ -18,7 +18,7 @@ import okhttp3.Response;
 
 public class PerplexityProvider implements AIProvider {
     private static final String API_URL = "https://api.perplexity.ai/chat/completions";
-    private static final String MODEL = "llama-3.1-sonar-large-128k-online";
+    private static final String MODEL = "sonar";
     private final String apiKey;
     private final OkHttpClient client;
 
@@ -42,24 +42,8 @@ public class PerplexityProvider implements AIProvider {
             JSONObject userMessage = new JSONObject();
             userMessage.put("role", "user");
 
-            // Perplexity uses OpenAI-compatible format with image_url
-            JSONArray content = new JSONArray();
-
-            // Text block
-            JSONObject textBlock = new JSONObject();
-            textBlock.put("type", "text");
-            textBlock.put("text", prompt);
-            content.put(textBlock);
-
-            // Image block
-            JSONObject imageBlock = new JSONObject();
-            imageBlock.put("type", "image_url");
-            JSONObject imageUrl = new JSONObject();
-            imageUrl.put("url", "data:image/jpeg;base64," + imageBase64);
-            imageBlock.put("image_url", imageUrl);
-            content.put(imageBlock);
-
-            userMessage.put("content", content);
+            // Perplexity is text-only, send prompt as direct string content
+            userMessage.put("content", prompt);
             messages.put(userMessage);
             requestBody.put("messages", messages);
 
@@ -78,13 +62,6 @@ public class PerplexityProvider implements AIProvider {
             try (Response response = client.newCall(request).execute()) {
                 if (!response.isSuccessful()) {
                     String errorBody = response.body() != null ? response.body().string() : "Unknown error";
-
-                    // Check if error is about image support
-                    if (errorBody.contains("image") || errorBody.contains("vision") || response.code() == 400) {
-                        throw new AIProviderException(
-                            "Perplexity may not support image analysis. Try using ChatGPT or Claude instead. Error: " + errorBody);
-                    }
-
                     throw new AIProviderException(
                         "API error: " + response.code() + " " + response.message() + " - " + errorBody);
                 }
@@ -110,7 +87,9 @@ public class PerplexityProvider implements AIProvider {
                     aiText = aiText.substring(start, end + 1);
                 }
 
-                return JsonParser.parsePlantAnalysis(aiText);
+                PlantAnalysisResult result = JsonParser.parsePlantAnalysis(aiText);
+                result.rawResponse = responseBody;
+                return result;
             }
         } catch (JSONException | IOException e) {
             throw new AIProviderException("Analysis failed: " + e.getMessage(), e);
@@ -125,5 +104,10 @@ public class PerplexityProvider implements AIProvider {
     @Override
     public String getDisplayName() {
         return "Perplexity";
+    }
+
+    @Override
+    public boolean supportsVision() {
+        return false;
     }
 }

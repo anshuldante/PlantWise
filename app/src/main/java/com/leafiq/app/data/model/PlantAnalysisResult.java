@@ -3,6 +3,7 @@ package com.leafiq.app.data.model;
 import java.util.List;
 
 public class PlantAnalysisResult {
+    public String rawResponse;
     public Identification identification;
     public HealthAssessment healthAssessment;
     public List<ImmediateAction> immediateActions;
