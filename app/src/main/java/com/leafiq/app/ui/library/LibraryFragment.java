@@ -11,7 +11,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
-import androidx.recyclerview.widget.GridLayoutManager;
+import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.leafiq.app.R;
@@ -55,7 +55,7 @@ public class LibraryFragment extends Fragment implements PlantCardAdapter.OnPlan
 
     private void setupRecyclerView() {
         adapter = new PlantCardAdapter(this);
-        recyclerView.setLayoutManager(new GridLayoutManager(requireContext(), 1));
+        recyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
         recyclerView.setAdapter(adapter);
     }
 
