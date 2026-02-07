@@ -3,6 +3,9 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 
+    <!-- Launcher icon background -->
+    <color name="ic_launcher_background">#EAFBF3</color>
+
     <!-- LeafIQ Color Palette -->
     <color name="seed">#2E7D32</color>
     <color name="surface_light">#FEFBF6</color>
