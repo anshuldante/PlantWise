@@ -98,11 +98,8 @@ public class AnalysisActivity extends AppCompatActivity {
         saveButton.setOnClickListener(v -> savePlant());
         retryButton.setOnClickListener(v -> startAnalysis());
 
-        if (!keystoreHelper.hasApiKey()) {
-            promptForApiKey();
-        } else {
-            startAnalysis();
-        }
+        // Analysis will be triggered after copyImageToLocal() completes
+        // Don't start analysis here - avoid race condition
     }
 
     private void copyImageToLocal() {
@@ -119,7 +116,7 @@ public class AnalysisActivity extends AppCompatActivity {
                 try (java.io.InputStream in = getContentResolver().openInputStream(imageUri);
                      java.io.OutputStream out = new java.io.FileOutputStream(localFile)) {
                     if (in == null) {
-                        android.util.Log.e("AnalysisActivity", "Could not open input stream");
+                        runOnUiThread(() -> showError("Could not open image. Please try again."));
                         return;
                     }
                     byte[] buf = new byte[4096];
@@ -132,8 +129,18 @@ public class AnalysisActivity extends AppCompatActivity {
                 localImageUri = Uri.fromFile(localFile);
                 android.util.Log.d("AnalysisActivity", "Image copied to: " + localImageUri);
 
+                // After copy completes, check API key and start analysis
+                runOnUiThread(() -> {
+                    if (!keystoreHelper.hasApiKey()) {
+                        promptForApiKey();
+                    } else {
+                        startAnalysis();
+                    }
+                });
+
             } catch (Exception e) {
                 android.util.Log.e("AnalysisActivity", "Failed to copy image locally: " + e.getMessage());
+                runOnUiThread(() -> showError("Failed to copy image: " + e.getMessage()));
             }
         });
     }
@@ -220,7 +227,9 @@ public class AnalysisActivity extends AppCompatActivity {
 
         executor.execute(() -> {
             try {
-                String base64Image = ImageUtils.prepareForApi(this, imageUri);
+                // Use local copy if available, otherwise fall back to original URI
+                Uri uriToUse = localImageUri != null ? localImageUri : imageUri;
+                String base64Image = ImageUtils.prepareForApi(this, uriToUse);
 
                 List<Analysis> previousAnalyses = null;
                 String knownPlantName = null;
