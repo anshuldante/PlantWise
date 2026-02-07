@@ -39,6 +39,7 @@ public class CameraActivity extends AppCompatActivity {
 
     private static final String TAG = "CameraActivity";
     private static final int PERMISSION_REQUEST_CAMERA = 100;
+    public static final String EXTRA_PLANT_ID = "extra_plant_id";
 
     private PreviewView previewView;
     private FloatingActionButton captureButton;
@@ -48,6 +49,7 @@ public class CameraActivity extends AppCompatActivity {
 
     private ImageCapture imageCapture;
     private ExecutorService cameraExecutor;
+    private String plantId;
 
     private final ActivityResultLauncher<PickVisualMediaRequest> pickMedia =
         registerForActivityResult(new ActivityResultContracts.PickVisualMedia(), uri -> {
@@ -60,6 +62,8 @@ public class CameraActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_camera);
+
+        plantId = getIntent().getStringExtra(EXTRA_PLANT_ID);
 
         previewView = findViewById(R.id.preview_view);
         captureButton = findViewById(R.id.btn_capture);
@@ -178,6 +182,9 @@ public class CameraActivity extends AppCompatActivity {
     private void proceedToAnalysis(Uri imageUri) {
         Intent intent = new Intent(this, AnalysisActivity.class);
         intent.putExtra(AnalysisActivity.EXTRA_IMAGE_URI, imageUri.toString());
+        if (plantId != null) {
+            intent.putExtra(AnalysisActivity.EXTRA_PLANT_ID, plantId);
+        }
         startActivity(intent);
         finish();
     }
