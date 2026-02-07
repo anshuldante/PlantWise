@@ -15,6 +15,7 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.PickVisualMediaRequest;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.camera.core.CameraSelector;
 import androidx.camera.core.ImageCapture;
@@ -38,7 +39,6 @@ import java.util.concurrent.Executors;
 public class CameraActivity extends AppCompatActivity {
 
     private static final String TAG = "CameraActivity";
-    private static final int PERMISSION_REQUEST_CAMERA = 100;
     public static final String EXTRA_PLANT_ID = "extra_plant_id";
 
     private PreviewView previewView;
@@ -50,6 +50,15 @@ public class CameraActivity extends AppCompatActivity {
     private ImageCapture imageCapture;
     private ExecutorService cameraExecutor;
     private String plantId;
+
+    private final ActivityResultLauncher<String> requestCameraPermission =
+        registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
+            if (isGranted) {
+                startCamera();
+            } else {
+                showPermissionDeniedDialog();
+            }
+        });
 
     private final ActivityResultLauncher<PickVisualMediaRequest> pickMedia =
         registerForActivityResult(new ActivityResultContracts.PickVisualMedia(), uri -> {
@@ -80,31 +89,13 @@ public class CameraActivity extends AppCompatActivity {
         if (checkCameraPermission()) {
             startCamera();
         } else {
-            requestCameraPermission();
+            requestCameraPermission.launch(Manifest.permission.CAMERA);
         }
     }
 
     private boolean checkCameraPermission() {
         return ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
             == PackageManager.PERMISSION_GRANTED;
-    }
-
-    private void requestCameraPermission() {
-        requestPermissions(new String[]{Manifest.permission.CAMERA}, PERMISSION_REQUEST_CAMERA);
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
-                                           @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == PERMISSION_REQUEST_CAMERA) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                startCamera();
-            } else {
-                Toast.makeText(this, R.string.camera_permission_required, Toast.LENGTH_LONG).show();
-                finish();
-            }
-        }
     }
 
     private void startCamera() {
@@ -187,6 +178,22 @@ public class CameraActivity extends AppCompatActivity {
         }
         startActivity(intent);
         finish();
+    }
+
+    private void showPermissionDeniedDialog() {
+        new AlertDialog.Builder(this)
+            .setTitle("Camera Permission Required")
+            .setMessage("LeafIQ needs camera access to take plant photos for analysis. "
+                + "You can enable it in Settings.")
+            .setPositiveButton("Open Settings", (dialog, which) -> {
+                Intent intent = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                Uri uri = Uri.fromParts("package", getPackageName(), null);
+                intent.setData(uri);
+                startActivity(intent);
+            })
+            .setNegativeButton("Cancel", (dialog, which) -> finish())
+            .setCancelable(false)
+            .show();
     }
 
     private void setLoading(boolean loading) {
