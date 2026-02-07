@@ -15,7 +15,7 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.PlantWise">
+        android:theme="@style/Theme.LeafIQ">
 
         <activity
             android:name=".MainActivity"
@@ -30,17 +30,17 @@
             android:name=".ui.camera.CameraActivity"
             android:exported="false"
             android:screenOrientation="portrait"
-            android:theme="@style/Theme.PlantWise" />
+            android:theme="@style/Theme.LeafIQ" />
 
         <activity
             android:name=".ui.analysis.AnalysisActivity"
             android:exported="false"
-            android:theme="@style/Theme.PlantWise" />
+            android:theme="@style/Theme.LeafIQ" />
 
         <activity
             android:name=".ui.detail.PlantDetailActivity"
             android:exported="false"
-            android:theme="@style/Theme.PlantWise" />
+            android:theme="@style/Theme.LeafIQ" />
 
     </application>
 

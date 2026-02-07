@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">PlantWise</string>
+    <string name="app_name">LeafIQ</string>
 
     <!-- Navigation -->
     <string name="nav_library">Library</string>

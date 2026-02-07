@@ -26,7 +26,7 @@ public abstract class AppDatabase extends RoomDatabase {
                     INSTANCE = Room.databaseBuilder(
                             context.getApplicationContext(),
                             AppDatabase.class,
-                            "plantwise_database"
+                            "leafiq_database"
                     )
                     .fallbackToDestructiveMigration()
                     .build();

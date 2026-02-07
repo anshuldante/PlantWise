@@ -11,7 +11,7 @@ import java.security.GeneralSecurityException;
 
 public class KeystoreHelper {
 
-    private static final String PREFS_NAME = "plantwise_secure_prefs";
+    private static final String PREFS_NAME = "leafiq_secure_prefs";
     private static final String KEY_API_KEY = "api_key";
     private static final String KEY_PROVIDER = "ai_provider";
 
