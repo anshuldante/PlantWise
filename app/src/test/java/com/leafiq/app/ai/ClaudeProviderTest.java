@@ -104,6 +104,12 @@ public class ClaudeProviderTest {
     }
 
     @Test
+    public void supportsVision_returnsTrue() {
+        ClaudeProvider provider = new ClaudeProvider("sk-test");
+        assertThat(provider.supportsVision()).isTrue();
+    }
+
+    @Test
     public void stripBackticks_handlesVariousFormats() {
         // Test various markdown wrapping formats
         String[] inputs = {

@@ -110,4 +110,12 @@ public class PlantAnalysisResultTest {
         assertThat(result.healthAssessment.score).isEqualTo(8);
         assertThat(result.funFact).isEqualTo("Interesting fact");
     }
+
+    @Test
+    public void rawResponse_canBeSetAndRead() {
+        PlantAnalysisResult result = new PlantAnalysisResult();
+        result.rawResponse = "{\"raw\":\"json response from API\"}";
+
+        assertThat(result.rawResponse).isEqualTo("{\"raw\":\"json response from API\"}");
+    }
 }

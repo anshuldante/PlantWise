@@ -6,8 +6,11 @@ import com.leafiq.app.data.entity.Analysis;
 
 import org.junit.Test;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 
 public class PromptBuilderTest {
 
@@ -133,5 +136,44 @@ public class PromptBuilderTest {
         assertThat(prompt).contains("Office desk");
         assertThat(prompt).contains("Health 6/10");
         assertThat(prompt).contains("Needs more light");
+    }
+
+    @Test
+    public void buildAnalysisPrompt_withPreviousAnalyses_formatsTimestampsAsDate() {
+        long timestamp = 1700000000000L;
+        List<Analysis> previousAnalyses = new ArrayList<>();
+
+        Analysis analysis = new Analysis();
+        analysis.id = "1";
+        analysis.createdAt = timestamp;
+        analysis.healthScore = 7;
+        analysis.summary = "Healthy";
+        previousAnalyses.add(analysis);
+
+        String prompt = PromptBuilder.buildAnalysisPrompt("Test Plant", previousAnalyses, null);
+
+        // Compute expected date string in the local timezone (matches PromptBuilder logic)
+        SimpleDateFormat sdf = new SimpleDateFormat("MMM d, yyyy", Locale.US);
+        String expectedDate = sdf.format(new Date(timestamp));
+
+        // Should contain formatted date, not raw epoch long
+        assertThat(prompt).contains(expectedDate);
+        assertThat(prompt).doesNotContain("1700000000000");
+    }
+
+    @Test
+    public void buildAnalysisPrompt_withZeroTimestamp_showsUnknownDate() {
+        List<Analysis> previousAnalyses = new ArrayList<>();
+
+        Analysis analysis = new Analysis();
+        analysis.id = "1";
+        analysis.createdAt = 0L;
+        analysis.healthScore = 5;
+        analysis.summary = "Unknown timing";
+        previousAnalyses.add(analysis);
+
+        String prompt = PromptBuilder.buildAnalysisPrompt("Test Plant", previousAnalyses, null);
+
+        assertThat(prompt).contains("Unknown date");
     }
 }

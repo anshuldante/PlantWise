@@ -158,6 +158,18 @@ public class AnalysisDaoTest {
         assertThat(analyses).hasSize(10);
     }
 
+    @Test
+    public void insertAnalysis_withRawResponse_persistsRawResponse() {
+        Analysis analysis = createTestAnalysis("raw-1", "plant-1", 8, "With raw response");
+        analysis.rawResponse = "{\"choices\":[{\"message\":{\"content\":\"test\"}}]}";
+        analysisDao.insertAnalysis(analysis);
+
+        Analysis retrieved = analysisDao.getAnalysisById("raw-1");
+
+        assertThat(retrieved).isNotNull();
+        assertThat(retrieved.rawResponse).isEqualTo("{\"choices\":[{\"message\":{\"content\":\"test\"}}]}");
+    }
+
     private Analysis createTestAnalysis(String id, String plantId, int score, String summary) {
         Analysis analysis = new Analysis();
         analysis.id = id;
