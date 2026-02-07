@@ -12,7 +12,12 @@ import java.security.GeneralSecurityException;
 public class KeystoreHelper {
 
     private static final String PREFS_NAME = "leafiq_secure_prefs";
-    private static final String KEY_API_KEY = "api_key";
+    private static final String KEY_API_KEY_GEMINI = "api_key_gemini";
+    private static final String KEY_API_KEY_CLAUDE = "api_key_claude";
+    private static final String KEY_API_KEY_OPENAI = "api_key_openai";
+    private static final String KEY_API_KEY_PERPLEXITY = "api_key_perplexity";
+    // Legacy key for migration
+    private static final String KEY_API_KEY_LEGACY = "api_key";
     private static final String KEY_PROVIDER = "ai_provider";
 
     public static final String PROVIDER_OPENAI = "openai";
@@ -43,12 +48,33 @@ public class KeystoreHelper {
         this.prefs = tempPrefs;
     }
 
+    private String getKeyForProvider(String provider) {
+        switch (provider) {
+            case PROVIDER_GEMINI: return KEY_API_KEY_GEMINI;
+            case PROVIDER_CLAUDE: return KEY_API_KEY_CLAUDE;
+            case PROVIDER_OPENAI: return KEY_API_KEY_OPENAI;
+            case PROVIDER_PERPLEXITY: return KEY_API_KEY_PERPLEXITY;
+            default: return KEY_API_KEY_GEMINI;
+        }
+    }
+
     public void saveApiKey(String apiKey) {
-        prefs.edit().putString(KEY_API_KEY, apiKey).apply();
+        String key = getKeyForProvider(getProvider());
+        prefs.edit().putString(key, apiKey).apply();
     }
 
     public String getApiKey() {
-        return prefs.getString(KEY_API_KEY, null);
+        String key = getKeyForProvider(getProvider());
+        String apiKey = prefs.getString(key, null);
+        if (apiKey == null) {
+            // Migration: check legacy single-key storage
+            apiKey = prefs.getString(KEY_API_KEY_LEGACY, null);
+            if (apiKey != null) {
+                // Migrate legacy key to current provider's slot
+                prefs.edit().putString(key, apiKey).remove(KEY_API_KEY_LEGACY).apply();
+            }
+        }
+        return apiKey;
     }
 
     public boolean hasApiKey() {
@@ -57,7 +83,8 @@ public class KeystoreHelper {
     }
 
     public void clearApiKey() {
-        prefs.edit().remove(KEY_API_KEY).apply();
+        String key = getKeyForProvider(getProvider());
+        prefs.edit().remove(key).apply();
     }
 
     public void saveProvider(String provider) {
@@ -74,5 +101,11 @@ public class KeystoreHelper {
 
     public boolean isClaude() {
         return PROVIDER_CLAUDE.equals(getProvider());
+    }
+
+    public boolean hasApiKeyForProvider(String provider) {
+        String key = getKeyForProvider(provider);
+        String apiKey = prefs.getString(key, null);
+        return apiKey != null && !apiKey.trim().isEmpty();
     }
 }

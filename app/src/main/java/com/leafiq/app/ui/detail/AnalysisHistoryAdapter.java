@@ -1,5 +1,6 @@
 package com.leafiq.app.ui.detail;
 
+import android.text.format.DateUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -17,9 +18,7 @@ import com.leafiq.app.data.entity.Analysis;
 import com.bumptech.glide.Glide;
 
 import java.io.File;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 
 public class AnalysisHistoryAdapter extends ListAdapter<Analysis, AnalysisHistoryAdapter.AnalysisViewHolder> {
 
@@ -78,8 +77,7 @@ public class AnalysisHistoryAdapter extends ListAdapter<Analysis, AnalysisHistor
             }
 
             // Format date
-            SimpleDateFormat sdf = new SimpleDateFormat("MMM d, yyyy", Locale.getDefault());
-            date.setText(sdf.format(new Date(analysis.createdAt)));
+            date.setText(getRelativeTimeString(analysis.createdAt));
 
             // Health score with color
             score.setText("Health: " + analysis.healthScore + "/10");
@@ -95,6 +93,25 @@ public class AnalysisHistoryAdapter extends ListAdapter<Analysis, AnalysisHistor
 
             // Summary
             summary.setText(analysis.summary != null ? analysis.summary : "");
+        }
+
+        private String getRelativeTimeString(long timestamp) {
+            if (timestamp <= 0) return "Unknown date";
+            long now = System.currentTimeMillis();
+            long diff = now - timestamp;
+            long days = TimeUnit.MILLISECONDS.toDays(diff);
+
+            if (days < 7) {
+                return DateUtils.getRelativeTimeSpanString(
+                    timestamp, now, DateUtils.MINUTE_IN_MILLIS,
+                    DateUtils.FORMAT_ABBREV_RELATIVE).toString();
+            }
+
+            int flags = DateUtils.FORMAT_SHOW_DATE | DateUtils.FORMAT_ABBREV_MONTH;
+            if (days > 365) {
+                flags |= DateUtils.FORMAT_SHOW_YEAR;
+            }
+            return DateUtils.formatDateTime(itemView.getContext(), timestamp, flags);
         }
     }
 }

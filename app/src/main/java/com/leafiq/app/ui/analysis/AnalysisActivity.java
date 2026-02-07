@@ -26,6 +26,7 @@ import com.leafiq.app.ai.PerplexityProvider;
 import com.leafiq.app.ai.PromptBuilder;
 import com.leafiq.app.data.db.AppDatabase;
 import com.leafiq.app.data.entity.Analysis;
+import com.leafiq.app.data.entity.CareItem;
 import com.leafiq.app.data.entity.Plant;
 import com.leafiq.app.data.model.PlantAnalysisResult;
 import com.leafiq.app.util.ImageUtils;
@@ -98,11 +99,8 @@ public class AnalysisActivity extends AppCompatActivity {
         saveButton.setOnClickListener(v -> savePlant());
         retryButton.setOnClickListener(v -> startAnalysis());
 
-        if (!keystoreHelper.hasApiKey()) {
-            promptForApiKey();
-        } else {
-            startAnalysis();
-        }
+        // Analysis will be triggered after copyImageToLocal() completes
+        // Don't start analysis here - avoid race condition
     }
 
     private void copyImageToLocal() {
@@ -119,7 +117,7 @@ public class AnalysisActivity extends AppCompatActivity {
                 try (java.io.InputStream in = getContentResolver().openInputStream(imageUri);
                      java.io.OutputStream out = new java.io.FileOutputStream(localFile)) {
                     if (in == null) {
-                        android.util.Log.e("AnalysisActivity", "Could not open input stream");
+                        runOnUiThread(() -> showError("Could not open image. Please try again."));
                         return;
                     }
                     byte[] buf = new byte[4096];
@@ -132,8 +130,18 @@ public class AnalysisActivity extends AppCompatActivity {
                 localImageUri = Uri.fromFile(localFile);
                 android.util.Log.d("AnalysisActivity", "Image copied to: " + localImageUri);
 
+                // After copy completes, check API key and start analysis
+                runOnUiThread(() -> {
+                    if (!keystoreHelper.hasApiKey()) {
+                        promptForApiKey();
+                    } else {
+                        startAnalysis();
+                    }
+                });
+
             } catch (Exception e) {
                 android.util.Log.e("AnalysisActivity", "Failed to copy image locally: " + e.getMessage());
+                runOnUiThread(() -> showError("Failed to copy image: " + e.getMessage()));
             }
         });
     }
@@ -220,7 +228,9 @@ public class AnalysisActivity extends AppCompatActivity {
 
         executor.execute(() -> {
             try {
-                String base64Image = ImageUtils.prepareForApi(this, imageUri);
+                // Use local copy if available, otherwise fall back to original URI
+                Uri uriToUse = localImageUri != null ? localImageUri : imageUri;
+                String base64Image = ImageUtils.prepareForApi(this, uriToUse);
 
                 List<Analysis> previousAnalyses = null;
                 String knownPlantName = null;
@@ -237,6 +247,29 @@ public class AnalysisActivity extends AppCompatActivity {
                 String prompt = PromptBuilder.buildAnalysisPrompt(knownPlantName, previousAnalyses, null);
 
                 AIProvider provider = createProvider();
+
+                // Check if provider supports vision (image analysis)
+                if (!provider.supportsVision()) {
+                    runOnUiThread(() -> {
+                        new AlertDialog.Builder(AnalysisActivity.this)
+                            .setTitle("Image Analysis Not Supported")
+                            .setMessage(provider.getDisplayName() + " doesn't support image analysis. "
+                                + "Please describe your plant or switch to another provider.")
+                            .setPositiveButton("OK", (dialog, which) -> {
+                                // Let user stay on screen - they can retry with different provider
+                                showError(provider.getDisplayName() + " is text-only. "
+                                    + "Switch to Claude, ChatGPT, or Gemini in Settings for image analysis.");
+                            })
+                            .setNeutralButton("Open Settings", (dialog, which) -> {
+                                // Navigate back so user can access settings
+                                finish();
+                            })
+                            .setCancelable(false)
+                            .show();
+                    });
+                    return; // Don't proceed with API call
+                }
+
                 analysisResult = provider.analyzePhoto(base64Image, prompt);
 
                 runOnUiThread(this::displayResults);
@@ -485,9 +518,15 @@ public class AnalysisActivity extends AppCompatActivity {
                 analysis.healthScore = plant.latestHealthScore;
                 analysis.summary = analysisResult.healthAssessment != null ?
                     analysisResult.healthAssessment.summary : "";
+                analysis.rawResponse = analysisResult.rawResponse;
                 analysis.createdAt = now;
 
                 db.analysisDao().insertAnalysis(analysis);
+
+                // Persist care items from AI analysis
+                if (analysisResult.carePlan != null) {
+                    insertCareItems(db, plantId, analysisResult.carePlan, now);
+                }
 
                 runOnUiThread(() -> {
                     Toast.makeText(this, "Plant saved to library!", Toast.LENGTH_SHORT).show();
@@ -503,6 +542,92 @@ public class AnalysisActivity extends AppCompatActivity {
                 });
             }
         });
+    }
+
+    private void insertCareItems(AppDatabase db, String plantId,
+                                 PlantAnalysisResult.CarePlan carePlan, long now) {
+        // Delete existing care items for this plant to avoid duplicates on re-analysis
+        // (CareItemDao doesn't have a deleteByPlantId, so we skip this for now --
+        //  insertCareItem uses OnConflictStrategy.REPLACE, and new UUIDs mean new rows.
+        //  Old rows will CASCADE delete if the plant is deleted.)
+
+        if (carePlan.watering != null && carePlan.watering.frequency != null) {
+            CareItem item = new CareItem();
+            item.id = UUID.randomUUID().toString();
+            item.plantId = plantId;
+            item.type = "water";
+            item.frequencyDays = parseFrequencyDays(carePlan.watering.frequency);
+            item.lastDone = now;
+            item.nextDue = now + (item.frequencyDays * 86400000L);
+            item.notes = carePlan.watering.amount;
+            if (carePlan.watering.notes != null) {
+                item.notes = (item.notes != null ? item.notes + " - " : "") + carePlan.watering.notes;
+            }
+            db.careItemDao().insertCareItem(item);
+        }
+
+        if (carePlan.fertilizer != null && carePlan.fertilizer.frequency != null) {
+            CareItem item = new CareItem();
+            item.id = UUID.randomUUID().toString();
+            item.plantId = plantId;
+            item.type = "fertilize";
+            item.frequencyDays = parseFrequencyDays(carePlan.fertilizer.frequency);
+            item.lastDone = now;
+            item.nextDue = now + (item.frequencyDays * 86400000L);
+            item.notes = carePlan.fertilizer.type;
+            db.careItemDao().insertCareItem(item);
+        }
+
+        if (carePlan.pruning != null && carePlan.pruning.needed) {
+            CareItem item = new CareItem();
+            item.id = UUID.randomUUID().toString();
+            item.plantId = plantId;
+            item.type = "prune";
+            item.frequencyDays = 30; // Default monthly for pruning
+            item.lastDone = now;
+            item.nextDue = now + (item.frequencyDays * 86400000L);
+            item.notes = carePlan.pruning.instructions;
+            db.careItemDao().insertCareItem(item);
+        }
+
+        if (carePlan.repotting != null && carePlan.repotting.needed) {
+            CareItem item = new CareItem();
+            item.id = UUID.randomUUID().toString();
+            item.plantId = plantId;
+            item.type = "repot";
+            item.frequencyDays = 365; // Default yearly for repotting
+            item.lastDone = now;
+            item.nextDue = now + (item.frequencyDays * 86400000L);
+            item.notes = carePlan.repotting.signs;
+            db.careItemDao().insertCareItem(item);
+        }
+    }
+
+    private int parseFrequencyDays(String frequency) {
+        if (frequency == null) return 7;
+        String lower = frequency.toLowerCase();
+
+        // Try to extract a number
+        try {
+            String numStr = lower.replaceAll("[^0-9]", "");
+            if (!numStr.isEmpty()) {
+                int num = Integer.parseInt(numStr);
+                if (lower.contains("week")) return num * 7;
+                if (lower.contains("month")) return num * 30;
+                if (lower.contains("day")) return num;
+                // Bare number, assume days
+                return Math.max(1, num);
+            }
+        } catch (NumberFormatException ignored) {}
+
+        // Keyword fallbacks
+        if (lower.contains("daily")) return 1;
+        if (lower.contains("weekly") || lower.contains("week")) return 7;
+        if (lower.contains("biweekly") || lower.contains("bi-weekly")) return 14;
+        if (lower.contains("monthly") || lower.contains("month")) return 30;
+        if (lower.contains("yearly") || lower.contains("annual")) return 365;
+
+        return 7; // Default to weekly
     }
 
     @Override

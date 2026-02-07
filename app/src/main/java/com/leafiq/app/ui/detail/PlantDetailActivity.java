@@ -69,6 +69,7 @@ public class PlantDetailActivity extends AppCompatActivity {
 
         fabReanalyze.setOnClickListener(v -> {
             Intent intent = new Intent(this, CameraActivity.class);
+            intent.putExtra(CameraActivity.EXTRA_PLANT_ID, plantId);
             startActivity(intent);
         });
     }

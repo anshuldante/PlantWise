@@ -1,5 +1,6 @@
 package com.leafiq.app.ui.library;
 
+import android.text.format.DateUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -17,9 +18,7 @@ import com.leafiq.app.data.entity.Plant;
 import com.bumptech.glide.Glide;
 
 import java.io.File;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Locale;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 public class PlantCardAdapter extends ListAdapter<Plant, PlantCardAdapter.PlantViewHolder> {
@@ -44,7 +43,8 @@ public class PlantCardAdapter extends ListAdapter<Plant, PlantCardAdapter.PlantV
 
             @Override
             public boolean areContentsTheSame(@NonNull Plant oldItem, @NonNull Plant newItem) {
-                return oldItem.commonName.equals(newItem.commonName)
+                return Objects.equals(oldItem.commonName, newItem.commonName)
+                    && Objects.equals(oldItem.thumbnailPath, newItem.thumbnailPath)
                     && oldItem.latestHealthScore == newItem.latestHealthScore
                     && oldItem.updatedAt == newItem.updatedAt;
             }
@@ -88,7 +88,7 @@ public class PlantCardAdapter extends ListAdapter<Plant, PlantCardAdapter.PlantV
                     .centerCrop()
                     .into(thumbnail);
             } else {
-                thumbnail.setImageResource(android.R.drawable.ic_menu_gallery);
+                thumbnail.setImageResource(R.drawable.ic_plant_placeholder);
             }
 
             // Set name
@@ -103,9 +103,14 @@ public class PlantCardAdapter extends ListAdapter<Plant, PlantCardAdapter.PlantV
             lastAnalyzed.setText(getRelativeTimeString(plant.updatedAt));
 
             // Set health score and color
-            healthScore.setText(String.valueOf(plant.latestHealthScore));
-            int color = getHealthColor(plant.latestHealthScore);
-            healthScore.getBackground().setTint(ContextCompat.getColor(itemView.getContext(), color));
+            if (plant.latestHealthScore > 0) {
+                healthScore.setText(String.valueOf(plant.latestHealthScore));
+                int color = getHealthColor(plant.latestHealthScore);
+                healthScore.getBackground().setTint(ContextCompat.getColor(itemView.getContext(), color));
+                healthScore.setVisibility(View.VISIBLE);
+            } else {
+                healthScore.setVisibility(View.GONE);
+            }
 
             // Click listener
             itemView.setOnClickListener(v -> {
@@ -126,19 +131,23 @@ public class PlantCardAdapter extends ListAdapter<Plant, PlantCardAdapter.PlantV
         }
 
         private String getRelativeTimeString(long timestamp) {
-            long diff = System.currentTimeMillis() - timestamp;
+            if (timestamp <= 0) return "Last analyzed: Unknown";
+            long now = System.currentTimeMillis();
+            long diff = now - timestamp;
             long days = TimeUnit.MILLISECONDS.toDays(diff);
 
-            if (days == 0) {
-                return "Last analyzed: Today";
-            } else if (days == 1) {
-                return "Last analyzed: Yesterday";
-            } else if (days < 7) {
-                return "Last analyzed: " + days + " days ago";
-            } else {
-                SimpleDateFormat sdf = new SimpleDateFormat("MMM d", Locale.getDefault());
-                return "Last analyzed: " + sdf.format(new Date(timestamp));
+            if (days < 7) {
+                return "Last analyzed: " + DateUtils.getRelativeTimeSpanString(
+                    timestamp, now, DateUtils.MINUTE_IN_MILLIS,
+                    DateUtils.FORMAT_ABBREV_RELATIVE).toString();
             }
+
+            int flags = DateUtils.FORMAT_SHOW_DATE | DateUtils.FORMAT_ABBREV_MONTH;
+            if (days > 365) {
+                flags |= DateUtils.FORMAT_SHOW_YEAR;
+            }
+            return "Last analyzed: " + DateUtils.formatDateTime(
+                itemView.getContext(), timestamp, flags);
         }
     }
 }

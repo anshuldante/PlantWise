@@ -4,7 +4,10 @@ import androidx.annotation.Nullable;
 
 import com.leafiq.app.data.entity.Analysis;
 
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 
 public class PromptBuilder {
 
@@ -31,7 +34,7 @@ public class PromptBuilder {
         if (previousAnalyses != null && !previousAnalyses.isEmpty()) {
             sb.append("\nPrevious analyses for this plant:\n");
             for (Analysis a : previousAnalyses) {
-                sb.append("- ").append(a.createdAt)
+                sb.append("- ").append(formatTimestamp(a.createdAt))
                   .append(": Health ").append(a.healthScore)
                   .append("/10, Summary: ").append(a.summary)
                   .append("\n");
@@ -50,6 +53,12 @@ public class PromptBuilder {
         sb.append("If you're unsure about something, say so rather than guessing.");
 
         return sb.toString();
+    }
+
+    private static String formatTimestamp(long timestamp) {
+        if (timestamp <= 0) return "Unknown date";
+        SimpleDateFormat sdf = new SimpleDateFormat("MMM d, yyyy", Locale.US);
+        return sdf.format(new Date(timestamp));
     }
 
     private static String getJsonTemplate() {

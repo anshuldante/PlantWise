@@ -104,7 +104,9 @@ public class ClaudeProvider implements AIProvider {
                     aiText = aiText.substring(start, end + 1);
                 }
 
-                return JsonParser.parsePlantAnalysis(aiText);
+                PlantAnalysisResult result = JsonParser.parsePlantAnalysis(aiText);
+                result.rawResponse = responseBody;
+                return result;
             }
         } catch (JSONException | IOException e) {
             throw new AIProviderException("Analysis failed: " + e.getMessage(), e);
@@ -119,5 +121,10 @@ public class ClaudeProvider implements AIProvider {
     @Override
     public String getDisplayName() {
         return "Claude (Anthropic)";
+    }
+
+    @Override
+    public boolean supportsVision() {
+        return true;
     }
 }
