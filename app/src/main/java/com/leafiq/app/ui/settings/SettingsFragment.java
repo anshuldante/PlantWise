@@ -70,6 +70,7 @@ public class SettingsFragment extends Fragment {
 
         providerGroup.setOnCheckedChangeListener((group, checkedId) -> {
             updateInfoText();
+            updateStatusForSelectedProvider();
         });
 
         saveButton.setOnClickListener(v -> saveSettings());
@@ -85,6 +86,32 @@ public class SettingsFragment extends Fragment {
             apiKeyInfo.setText(R.string.api_key_info_perplexity);
         } else {
             apiKeyInfo.setText(R.string.api_key_info_openai);
+        }
+    }
+
+    private void updateStatusForSelectedProvider() {
+        String provider = getSelectedProvider();
+        String providerName = getProviderDisplayName(provider);
+
+        if (keystoreHelper.hasApiKeyForProvider(provider)) {
+            statusText.setText(providerName + " - API key configured");
+        } else {
+            statusText.setText(providerName + " - No API key configured");
+        }
+        // Clear the hint since we're looking at a potentially different provider
+        apiKeyEdit.setHint(R.string.enter_api_key);
+    }
+
+    private String getSelectedProvider() {
+        int checkedId = providerGroup.getCheckedRadioButtonId();
+        if (checkedId == R.id.radio_gemini) {
+            return KeystoreHelper.PROVIDER_GEMINI;
+        } else if (checkedId == R.id.radio_claude) {
+            return KeystoreHelper.PROVIDER_CLAUDE;
+        } else if (checkedId == R.id.radio_perplexity) {
+            return KeystoreHelper.PROVIDER_PERPLEXITY;
+        } else {
+            return KeystoreHelper.PROVIDER_OPENAI;
         }
     }
 
@@ -117,18 +144,7 @@ public class SettingsFragment extends Fragment {
     }
 
     private void saveSettings() {
-        // Save provider
-        int checkedId = providerGroup.getCheckedRadioButtonId();
-        String provider;
-        if (checkedId == R.id.radio_gemini) {
-            provider = KeystoreHelper.PROVIDER_GEMINI;
-        } else if (checkedId == R.id.radio_claude) {
-            provider = KeystoreHelper.PROVIDER_CLAUDE;
-        } else if (checkedId == R.id.radio_perplexity) {
-            provider = KeystoreHelper.PROVIDER_PERPLEXITY;
-        } else {
-            provider = KeystoreHelper.PROVIDER_OPENAI;
-        }
+        String provider = getSelectedProvider();
         keystoreHelper.saveProvider(provider);
 
         // Save API key if provided
