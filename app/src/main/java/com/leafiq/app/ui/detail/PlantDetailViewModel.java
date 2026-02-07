@@ -1,0 +1,36 @@
+package com.leafiq.app.ui.detail;
+
+import android.app.Application;
+
+import androidx.annotation.NonNull;
+import androidx.lifecycle.AndroidViewModel;
+import androidx.lifecycle.LiveData;
+
+import com.leafiq.app.data.db.AppDatabase;
+import com.leafiq.app.data.db.AnalysisDao;
+import com.leafiq.app.data.db.PlantDao;
+import com.leafiq.app.data.entity.Analysis;
+import com.leafiq.app.data.entity.Plant;
+
+import java.util.List;
+
+public class PlantDetailViewModel extends AndroidViewModel {
+
+    private final PlantDao plantDao;
+    private final AnalysisDao analysisDao;
+
+    public PlantDetailViewModel(@NonNull Application application) {
+        super(application);
+        AppDatabase db = AppDatabase.getInstance(application);
+        plantDao = db.plantDao();
+        analysisDao = db.analysisDao();
+    }
+
+    public LiveData<Plant> getPlant(String plantId) {
+        return plantDao.getPlantById(plantId);
+    }
+
+    public LiveData<List<Analysis>> getAnalyses(String plantId) {
+        return analysisDao.getAnalysesForPlant(plantId);
+    }
+}
