@@ -15,6 +15,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.leafiq.app.R;
 import com.leafiq.app.data.entity.Analysis;
+import com.leafiq.app.util.HealthUtils;
 import com.bumptech.glide.Glide;
 
 import java.io.File;
@@ -22,8 +23,18 @@ import java.util.concurrent.TimeUnit;
 
 public class AnalysisHistoryAdapter extends ListAdapter<Analysis, AnalysisHistoryAdapter.AnalysisViewHolder> {
 
-    public AnalysisHistoryAdapter() {
+    /**
+     * Click listener for analysis history entries.
+     */
+    public interface OnAnalysisClickListener {
+        void onAnalysisClick(Analysis analysis);
+    }
+
+    private final OnAnalysisClickListener clickListener;
+
+    public AnalysisHistoryAdapter(OnAnalysisClickListener clickListener) {
         super(DIFF_CALLBACK);
+        this.clickListener = clickListener;
     }
 
     private static final DiffUtil.ItemCallback<Analysis> DIFF_CALLBACK =
@@ -50,7 +61,13 @@ public class AnalysisHistoryAdapter extends ListAdapter<Analysis, AnalysisHistor
 
     @Override
     public void onBindViewHolder(@NonNull AnalysisViewHolder holder, int position) {
-        holder.bind(getItem(position));
+        Analysis analysis = getItem(position);
+        holder.bind(analysis);
+        holder.itemView.setOnClickListener(v -> {
+            if (clickListener != null) {
+                clickListener.onAnalysisClick(analysis);
+            }
+        });
     }
 
     static class AnalysisViewHolder extends RecyclerView.ViewHolder {
@@ -79,16 +96,10 @@ public class AnalysisHistoryAdapter extends ListAdapter<Analysis, AnalysisHistor
             // Format date
             date.setText(getRelativeTimeString(analysis.createdAt));
 
-            // Health score with color
-            score.setText("Health: " + analysis.healthScore + "/10");
-            int colorRes;
-            if (analysis.healthScore >= 7) {
-                colorRes = R.color.health_good;
-            } else if (analysis.healthScore >= 4) {
-                colorRes = R.color.health_warning;
-            } else {
-                colorRes = R.color.health_bad;
-            }
+            // Health label with color (e.g., "Healthy", "Needs Attention", "Critical")
+            String healthLabel = HealthUtils.getHealthLabel(analysis.healthScore);
+            score.setText(healthLabel);
+            int colorRes = HealthUtils.getHealthColorRes(analysis.healthScore);
             score.setTextColor(ContextCompat.getColor(itemView.getContext(), colorRes));
 
             // Summary

@@ -23,6 +23,8 @@ import com.leafiq.app.data.entity.Analysis;
 import com.leafiq.app.data.entity.Plant;
 import com.leafiq.app.ui.analysis.AnalysisActivity;
 import com.leafiq.app.ui.camera.CameraActivity;
+import com.leafiq.app.ui.timeline.AnalysisDetailActivity;
+import com.leafiq.app.ui.timeline.SparklineView;
 import com.bumptech.glide.Glide;
 import com.google.android.material.appbar.CollapsingToolbarLayout;
 import com.google.android.material.button.MaterialButton;
@@ -32,7 +34,10 @@ import com.google.android.material.textfield.TextInputEditText;
 
 import java.io.File;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 
 public class PlantDetailActivity extends AppCompatActivity {
@@ -55,6 +60,8 @@ public class PlantDetailActivity extends AppCompatActivity {
     private MaterialButton correctButton;
     private TextInputEditText nicknameInput;
     private AutoCompleteTextView locationInput;
+    private SparklineView healthSparkline;
+    private TextView sparklineHint;
 
     private String plantId;
     private Plant currentPlant;
@@ -104,6 +111,8 @@ public class PlantDetailActivity extends AppCompatActivity {
         correctButton = findViewById(R.id.btn_correct_analysis);
         nicknameInput = findViewById(R.id.nickname_input);
         locationInput = findViewById(R.id.location_input);
+        healthSparkline = findViewById(R.id.health_sparkline);
+        sparklineHint = findViewById(R.id.sparkline_hint);
 
         setupInputListeners();
     }
@@ -225,7 +234,13 @@ public class PlantDetailActivity extends AppCompatActivity {
     }
 
     private void setupRecyclerView() {
-        adapter = new AnalysisHistoryAdapter();
+        adapter = new AnalysisHistoryAdapter(analysis -> {
+            // Open AnalysisDetailActivity when history entry is clicked
+            Intent intent = new Intent(this, AnalysisDetailActivity.class);
+            intent.putExtra(AnalysisDetailActivity.EXTRA_ANALYSIS_ID, analysis.id);
+            intent.putExtra(AnalysisDetailActivity.EXTRA_PLANT_ID, plantId);
+            startActivity(intent);
+        });
         analysisHistory.setLayoutManager(new LinearLayoutManager(this));
         analysisHistory.setAdapter(adapter);
     }
@@ -248,8 +263,44 @@ public class PlantDetailActivity extends AppCompatActivity {
                     SimpleDateFormat sdf = new SimpleDateFormat("MMM d, yyyy", Locale.getDefault());
                     lastAnalyzedDate.setText("Analyzed on " + sdf.format(new Date(latest.createdAt)));
                 }
+
+                // Update sparkline with health score trend
+                updateSparkline(analyses, currentPlant != null ? currentPlant.latestHealthScore : 0);
             }
         });
+    }
+
+    /**
+     * Updates the health sparkline with analysis history.
+     * Shows sparkline if 2+ analyses, hint if 1 analysis, nothing if 0.
+     *
+     * @param analyses          List of analyses (reverse chronological - newest first)
+     * @param latestHealthScore Latest health score for color determination
+     */
+    private void updateSparkline(List<Analysis> analyses, int latestHealthScore) {
+        if (analyses == null || analyses.isEmpty()) {
+            healthSparkline.setVisibility(View.GONE);
+            sparklineHint.setVisibility(View.GONE);
+            return;
+        }
+
+        if (analyses.size() == 1) {
+            // Single analysis - show hint
+            healthSparkline.setVisibility(View.GONE);
+            sparklineHint.setVisibility(View.VISIBLE);
+        } else {
+            // Multiple analyses - show sparkline
+            sparklineHint.setVisibility(View.GONE);
+
+            // Extract health scores and reverse to chronological order (oldest first)
+            List<Integer> healthScores = new ArrayList<>();
+            for (Analysis analysis : analyses) {
+                healthScores.add(analysis.healthScore);
+            }
+            Collections.reverse(healthScores);
+
+            healthSparkline.setData(healthScores, latestHealthScore);
+        }
     }
 
     private void displayPlant(Plant plant) {

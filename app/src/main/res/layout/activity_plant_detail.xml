@@ -163,6 +163,28 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
+            <!-- Health Score Sparkline -->
+            <com.leafiq.app.ui.timeline.SparklineView
+                android:id="@+id/health_sparkline"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="12dp"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                android:visibility="gone" />
+
+            <!-- Sparkline Hint (shown when only 1 analysis) -->
+            <TextView
+                android:id="@+id/sparkline_hint"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:layout_gravity="center_horizontal"
+                android:text="Analyze again to track health trends"
+                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:textColor="@color/text_secondary"
+                android:visibility="gone" />
+
             <!-- Latest Summary -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/summary_card"
