@@ -138,6 +138,82 @@ public class PlantDaoTest {
         assertThat(plants).hasSize(5);
     }
 
+    // ==================== Phase 5: getDistinctLocations tests ====================
+
+    @Test
+    public void getDistinctLocations_returnsUniqueLocations() {
+        Plant plant1 = createTestPlant("loc-1", "Plant A", "Sci A");
+        plant1.location = "Living Room";
+        plantDao.insertPlant(plant1);
+
+        Plant plant2 = createTestPlant("loc-2", "Plant B", "Sci B");
+        plant2.location = "Bedroom";
+        plantDao.insertPlant(plant2);
+
+        Plant plant3 = createTestPlant("loc-3", "Plant C", "Sci C");
+        plant3.location = "Living Room"; // duplicate
+        plantDao.insertPlant(plant3);
+
+        List<String> locations = plantDao.getDistinctLocations();
+
+        assertThat(locations).hasSize(2);
+        assertThat(locations).contains("Living Room");
+        assertThat(locations).contains("Bedroom");
+    }
+
+    @Test
+    public void getDistinctLocations_excludesNullAndEmpty() {
+        Plant plantWithLoc = createTestPlant("ne-1", "Plant A", "Sci A");
+        plantWithLoc.location = "Kitchen";
+        plantDao.insertPlant(plantWithLoc);
+
+        Plant plantNull = createTestPlant("ne-2", "Plant B", "Sci B");
+        plantNull.location = null;
+        plantDao.insertPlant(plantNull);
+
+        Plant plantEmpty = createTestPlant("ne-3", "Plant C", "Sci C");
+        plantEmpty.location = "";
+        plantDao.insertPlant(plantEmpty);
+
+        List<String> locations = plantDao.getDistinctLocations();
+
+        assertThat(locations).hasSize(1);
+        assertThat(locations).contains("Kitchen");
+    }
+
+    @Test
+    public void getDistinctLocations_returnsSortedAlphabetically() {
+        Plant plant1 = createTestPlant("sort-1", "Plant A", "Sci A");
+        plant1.location = "Patio";
+        plantDao.insertPlant(plant1);
+
+        Plant plant2 = createTestPlant("sort-2", "Plant B", "Sci B");
+        plant2.location = "Bathroom";
+        plantDao.insertPlant(plant2);
+
+        Plant plant3 = createTestPlant("sort-3", "Plant C", "Sci C");
+        plant3.location = "Kitchen";
+        plantDao.insertPlant(plant3);
+
+        List<String> locations = plantDao.getDistinctLocations();
+
+        assertThat(locations).hasSize(3);
+        assertThat(locations.get(0)).isEqualTo("Bathroom");
+        assertThat(locations.get(1)).isEqualTo("Kitchen");
+        assertThat(locations.get(2)).isEqualTo("Patio");
+    }
+
+    @Test
+    public void getDistinctLocations_withNoLocations_returnsEmptyList() {
+        Plant plant = createTestPlant("empty-1", "Plant A", "Sci A");
+        plant.location = null;
+        plantDao.insertPlant(plant);
+
+        List<String> locations = plantDao.getDistinctLocations();
+
+        assertThat(locations).isEmpty();
+    }
+
     private Plant createTestPlant(String id, String commonName, String scientificName) {
         Plant plant = new Plant();
         plant.id = id;

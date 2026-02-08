@@ -170,6 +170,69 @@ public class AnalysisDaoTest {
         assertThat(retrieved.rawResponse).isEqualTo("{\"choices\":[{\"message\":{\"content\":\"test\"}}]}");
     }
 
+    // ==================== Phase 5 tests ====================
+
+    @Test
+    public void updateAnalysis_updatesFields() {
+        Analysis analysis = createTestAnalysis("upd-1", "plant-1", 6, "Original summary");
+        analysisDao.insertAnalysis(analysis);
+
+        analysis.healthScore = 9;
+        analysis.summary = "Updated summary";
+        analysisDao.updateAnalysis(analysis);
+
+        Analysis retrieved = analysisDao.getAnalysisById("upd-1");
+        assertThat(retrieved).isNotNull();
+        assertThat(retrieved.healthScore).isEqualTo(9);
+        assertThat(retrieved.summary).isEqualTo("Updated summary");
+    }
+
+    @Test
+    public void deleteAnalysisById_removesAnalysis() {
+        Analysis analysis = createTestAnalysis("del-1", "plant-1", 7, "To delete");
+        analysisDao.insertAnalysis(analysis);
+
+        // Verify it exists
+        assertThat(analysisDao.getAnalysisById("del-1")).isNotNull();
+
+        analysisDao.deleteAnalysisById("del-1");
+
+        assertThat(analysisDao.getAnalysisById("del-1")).isNull();
+    }
+
+    @Test
+    public void getPhotoPathsForPlantSync_returnsPhotoPaths() {
+        Analysis analysis1 = createTestAnalysis("pp-1", "plant-1", 7, "With photo");
+        analysis1.photoPath = "/photos/photo1.jpg";
+        analysisDao.insertAnalysis(analysis1);
+
+        Analysis analysis2 = createTestAnalysis("pp-2", "plant-1", 8, "With photo 2");
+        analysis2.photoPath = "/photos/photo2.jpg";
+        analysisDao.insertAnalysis(analysis2);
+
+        List<String> paths = analysisDao.getPhotoPathsForPlantSync("plant-1");
+
+        assertThat(paths).hasSize(2);
+        assertThat(paths).contains("/photos/photo1.jpg");
+        assertThat(paths).contains("/photos/photo2.jpg");
+    }
+
+    @Test
+    public void getPhotoPathsForPlantSync_excludesNullPaths() {
+        Analysis withPath = createTestAnalysis("ep-1", "plant-1", 7, "Has path");
+        withPath.photoPath = "/photos/exists.jpg";
+        analysisDao.insertAnalysis(withPath);
+
+        Analysis withoutPath = createTestAnalysis("ep-2", "plant-1", 6, "No path");
+        withoutPath.photoPath = null;
+        analysisDao.insertAnalysis(withoutPath);
+
+        List<String> paths = analysisDao.getPhotoPathsForPlantSync("plant-1");
+
+        assertThat(paths).hasSize(1);
+        assertThat(paths).contains("/photos/exists.jpg");
+    }
+
     private Analysis createTestAnalysis(String id, String plantId, int score, String summary) {
         Analysis analysis = new Analysis();
         analysis.id = id;

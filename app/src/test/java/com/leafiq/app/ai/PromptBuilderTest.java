@@ -176,4 +176,94 @@ public class PromptBuilderTest {
 
         assertThat(prompt).contains("Unknown date");
     }
+
+    // ==================== buildCorrectionPrompt tests ====================
+
+    @Test
+    public void buildCorrectionPrompt_withNoContext_includesReAnalyzeInstructions() {
+        String prompt = PromptBuilder.buildCorrectionPrompt(null, null, null, null);
+
+        assertThat(prompt).contains("expert botanist");
+        assertThat(prompt).contains("corrections to a previous analysis");
+        assertThat(prompt).contains("re-analyze");
+    }
+
+    @Test
+    public void buildCorrectionPrompt_withCorrectedName_includesUserConfirmation() {
+        String prompt = PromptBuilder.buildCorrectionPrompt("Monstera Deliciosa", null, null, null);
+
+        assertThat(prompt).contains("user confirms this plant is");
+        assertThat(prompt).contains("Monstera Deliciosa");
+        assertThat(prompt).contains("correct identification");
+    }
+
+    @Test
+    public void buildCorrectionPrompt_withAdditionalContext_includesContext() {
+        String prompt = PromptBuilder.buildCorrectionPrompt(null, "Leaves turning yellow recently", null, null);
+
+        assertThat(prompt).contains("Additional context from the user");
+        assertThat(prompt).contains("Leaves turning yellow recently");
+        assertThat(prompt).contains("Incorporate this information");
+    }
+
+    @Test
+    public void buildCorrectionPrompt_withLocation_includesLocation() {
+        String prompt = PromptBuilder.buildCorrectionPrompt(null, null, null, "Kitchen windowsill");
+
+        assertThat(prompt).contains("Location:");
+        assertThat(prompt).contains("Kitchen windowsill");
+    }
+
+    @Test
+    public void buildCorrectionPrompt_withPreviousAnalyses_includesHistory() {
+        List<Analysis> previousAnalyses = new ArrayList<>();
+
+        Analysis analysis = new Analysis();
+        analysis.id = "1";
+        analysis.createdAt = 1700000000000L;
+        analysis.healthScore = 6;
+        analysis.summary = "Needs more water";
+        previousAnalyses.add(analysis);
+
+        String prompt = PromptBuilder.buildCorrectionPrompt(null, null, previousAnalyses, null);
+
+        assertThat(prompt).contains("Previous analyses");
+        assertThat(prompt).contains("Health 6/10");
+        assertThat(prompt).contains("Needs more water");
+    }
+
+    @Test
+    public void buildCorrectionPrompt_alwaysIncludesJsonTemplate() {
+        String prompt = PromptBuilder.buildCorrectionPrompt(null, null, null, null);
+
+        assertThat(prompt).contains("identification");
+        assertThat(prompt).contains("commonName");
+        assertThat(prompt).contains("healthAssessment");
+        assertThat(prompt).contains("carePlan");
+        assertThat(prompt).contains("ONLY with valid JSON");
+    }
+
+    @Test
+    public void buildCorrectionPrompt_withAllParameters_combinesCorrectly() {
+        List<Analysis> previousAnalyses = new ArrayList<>();
+        Analysis analysis = new Analysis();
+        analysis.id = "1";
+        analysis.createdAt = 1700000000000L;
+        analysis.healthScore = 7;
+        analysis.summary = "Recovering well";
+        previousAnalyses.add(analysis);
+
+        String prompt = PromptBuilder.buildCorrectionPrompt(
+            "Peace Lily",
+            "It was recently repotted",
+            previousAnalyses,
+            "Bathroom"
+        );
+
+        assertThat(prompt).contains("Peace Lily");
+        assertThat(prompt).contains("It was recently repotted");
+        assertThat(prompt).contains("Bathroom");
+        assertThat(prompt).contains("Health 7/10");
+        assertThat(prompt).contains("Recovering well");
+    }
 }
