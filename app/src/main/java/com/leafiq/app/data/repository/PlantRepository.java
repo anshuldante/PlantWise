@@ -207,6 +207,41 @@ public class PlantRepository {
     }
 
     /**
+     * Updates a plant in the database.
+     * Executes on background thread, result delivered via callback.
+     *
+     * @param plant Plant to update
+     * @param callback Callback for success/error
+     */
+    public void updatePlant(Plant plant, RepositoryCallback<Void> callback) {
+        ioExecutor.execute(() -> {
+            try {
+                plantDao.updatePlant(plant);
+                callback.onSuccess(null);
+            } catch (Exception e) {
+                callback.onError(e);
+            }
+        });
+    }
+
+    /**
+     * Gets distinct plant locations from the database.
+     * Executes on background thread, result delivered via callback.
+     *
+     * @param callback Callback for success/error
+     */
+    public void getDistinctLocations(RepositoryCallback<List<String>> callback) {
+        ioExecutor.execute(() -> {
+            try {
+                List<String> locations = plantDao.getDistinctLocations();
+                callback.onSuccess(locations);
+            } catch (Exception e) {
+                callback.onError(e);
+            }
+        });
+    }
+
+    /**
      * Deletes a plant and all associated data (analyses, care items, photos).
      * Cleans up photo files from disk before deleting database records.
      * Database CASCADE handles deletion of analyses and care items.

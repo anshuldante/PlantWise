@@ -4,6 +4,8 @@ import android.content.Intent;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.view.View;
+import android.widget.ArrayAdapter;
+import android.widget.AutoCompleteTextView;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -26,6 +28,7 @@ import com.google.android.material.appbar.CollapsingToolbarLayout;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.google.android.material.textfield.TextInputEditText;
 
 import java.io.File;
 import java.text.SimpleDateFormat;
@@ -49,6 +52,8 @@ public class PlantDetailActivity extends AppCompatActivity {
     private RecyclerView analysisHistory;
     private FloatingActionButton fabReanalyze;
     private MaterialButton deleteButton;
+    private TextInputEditText nicknameInput;
+    private AutoCompleteTextView locationInput;
 
     private String plantId;
     private Plant currentPlant;
@@ -93,6 +98,98 @@ public class PlantDetailActivity extends AppCompatActivity {
         analysisHistory = findViewById(R.id.analysis_history);
         fabReanalyze = findViewById(R.id.fab_reanalyze);
         deleteButton = findViewById(R.id.btn_delete);
+        nicknameInput = findViewById(R.id.nickname_input);
+        locationInput = findViewById(R.id.location_input);
+
+        setupInputListeners();
+    }
+
+    private void setupInputListeners() {
+        // Nickname auto-save on focus lost
+        nicknameInput.setOnFocusChangeListener((v, hasFocus) -> {
+            if (!hasFocus && currentPlant != null) {
+                String newNickname = nicknameInput.getText() != null ? nicknameInput.getText().toString().trim() : "";
+                String oldNickname = currentPlant.nickname != null ? currentPlant.nickname : "";
+
+                if (!newNickname.equals(oldNickname)) {
+                    currentPlant.nickname = newNickname.isEmpty() ? null : newNickname;
+                    currentPlant.updatedAt = System.currentTimeMillis();
+
+                    viewModel.updatePlant(currentPlant, new com.leafiq.app.data.repository.PlantRepository.RepositoryCallback<Void>() {
+                        @Override
+                        public void onSuccess(Void result) {
+                            runOnUiThread(() -> {
+                                // Update toolbar title
+                                String displayName = currentPlant.nickname != null && !currentPlant.nickname.isEmpty()
+                                    ? currentPlant.nickname : currentPlant.commonName;
+                                collapsingToolbar.setTitle(displayName != null ? displayName : "Unknown Plant");
+                                Toast.makeText(PlantDetailActivity.this, "Nickname saved", Toast.LENGTH_SHORT).show();
+                            });
+                        }
+
+                        @Override
+                        public void onError(Exception e) {
+                            runOnUiThread(() ->
+                                Toast.makeText(PlantDetailActivity.this, "Failed to save nickname", Toast.LENGTH_SHORT).show()
+                            );
+                        }
+                    });
+                }
+            }
+        });
+
+        // Location auto-save on focus lost
+        locationInput.setOnFocusChangeListener((v, hasFocus) -> {
+            if (hasFocus) {
+                // Load location autocomplete suggestions when focused
+                viewModel.getDistinctLocations(new com.leafiq.app.data.repository.PlantRepository.RepositoryCallback<java.util.List<String>>() {
+                    @Override
+                    public void onSuccess(java.util.List<String> locations) {
+                        runOnUiThread(() -> {
+                            if (locations != null && !locations.isEmpty()) {
+                                ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                                    PlantDetailActivity.this,
+                                    android.R.layout.simple_dropdown_item_1line,
+                                    locations
+                                );
+                                locationInput.setAdapter(adapter);
+                                locationInput.setThreshold(1);
+                            }
+                        });
+                    }
+
+                    @Override
+                    public void onError(Exception e) {
+                        // Silently fail - autocomplete just won't work
+                    }
+                });
+            } else if (currentPlant != null) {
+                // Save location when focus is lost
+                String newLocation = locationInput.getText() != null ? locationInput.getText().toString().trim() : "";
+                String oldLocation = currentPlant.location != null ? currentPlant.location : "";
+
+                if (!newLocation.equals(oldLocation)) {
+                    currentPlant.location = newLocation.isEmpty() ? null : newLocation;
+                    currentPlant.updatedAt = System.currentTimeMillis();
+
+                    viewModel.updatePlant(currentPlant, new com.leafiq.app.data.repository.PlantRepository.RepositoryCallback<Void>() {
+                        @Override
+                        public void onSuccess(Void result) {
+                            runOnUiThread(() ->
+                                Toast.makeText(PlantDetailActivity.this, "Location saved", Toast.LENGTH_SHORT).show()
+                            );
+                        }
+
+                        @Override
+                        public void onError(Exception e) {
+                            runOnUiThread(() ->
+                                Toast.makeText(PlantDetailActivity.this, "Failed to save location", Toast.LENGTH_SHORT).show()
+                            );
+                        }
+                    });
+                }
+            }
+        });
     }
 
     private void setupToolbar() {
@@ -146,6 +243,14 @@ public class PlantDetailActivity extends AppCompatActivity {
                 .load(new File(plant.thumbnailPath))
                 .centerCrop()
                 .into(plantImage);
+        }
+
+        // Populate nickname and location inputs
+        if (plant.nickname != null) {
+            nicknameInput.setText(plant.nickname);
+        }
+        if (plant.location != null) {
+            locationInput.setText(plant.location);
         }
     }
 

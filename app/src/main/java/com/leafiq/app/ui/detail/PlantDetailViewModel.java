@@ -30,6 +30,14 @@ public class PlantDetailViewModel extends AndroidViewModel {
         return repository.getAnalysesForPlant(plantId);
     }
 
+    public void updatePlant(Plant plant, PlantRepository.RepositoryCallback<Void> callback) {
+        repository.updatePlant(plant, callback);
+    }
+
+    public void getDistinctLocations(PlantRepository.RepositoryCallback<List<String>> callback) {
+        repository.getDistinctLocations(callback);
+    }
+
     public void deletePlant(Plant plant, PlantRepository.RepositoryCallback<Void> callback) {
         repository.deletePlant(plant, callback);
     }
