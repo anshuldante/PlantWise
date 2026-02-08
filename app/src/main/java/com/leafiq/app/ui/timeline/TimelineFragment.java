@@ -28,6 +28,7 @@ import java.util.List;
 public class TimelineFragment extends Fragment {
 
     private TimelineViewModel viewModel;
+    private TimelineAdapter adapter;
     private RecyclerView recyclerView;
     private View emptyState;
     private View loadingState;
@@ -53,9 +54,23 @@ public class TimelineFragment extends Fragment {
         // Setup ViewModel
         viewModel = new ViewModelProvider(this).get(TimelineViewModel.class);
 
-        // Setup RecyclerView
+        // Setup RecyclerView with adapter
         recyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
-        // Adapter will be wired in Plan 04 - leave null for now
+        adapter = new TimelineAdapter(requireContext(), new TimelineAdapter.OnTimelineItemClickListener() {
+            @Override
+            public void onItemClick(int position) {
+                viewModel.toggleExpansion(position);
+            }
+
+            @Override
+            public void onViewFullAnalysis(com.leafiq.app.data.model.AnalysisWithPlant data) {
+                Intent intent = new Intent(requireContext(), AnalysisDetailActivity.class);
+                intent.putExtra(AnalysisDetailActivity.EXTRA_ANALYSIS_ID, data.analysis.id);
+                intent.putExtra(AnalysisDetailActivity.EXTRA_PLANT_ID, data.analysis.plantId);
+                startActivity(intent);
+            }
+        });
+        recyclerView.setAdapter(adapter);
 
         // Setup filter chips
         setupFilterChips();
@@ -117,7 +132,8 @@ public class TimelineFragment extends Fragment {
             loadingState.setVisibility(View.GONE);
             emptyState.setVisibility(View.GONE);
             recyclerView.setVisibility(View.VISIBLE);
-            // Adapter update will happen in Plan 04
+            // Update adapter with new items
+            adapter.submitList(items);
         }
     }
 }
