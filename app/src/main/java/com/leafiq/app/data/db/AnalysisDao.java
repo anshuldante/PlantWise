@@ -22,4 +22,7 @@ public interface AnalysisDao {
 
     @Insert
     void insertAnalysis(Analysis analysis);
+
+    @Query("SELECT photo_path FROM analyses WHERE plant_id = :plantId AND photo_path IS NOT NULL")
+    List<String> getPhotoPathsForPlantSync(String plantId);
 }

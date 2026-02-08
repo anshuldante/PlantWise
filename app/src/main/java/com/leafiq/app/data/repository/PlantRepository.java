@@ -205,4 +205,47 @@ public class PlantRepository {
             }
         });
     }
+
+    /**
+     * Deletes a plant and all associated data (analyses, care items, photos).
+     * Cleans up photo files from disk before deleting database records.
+     * Database CASCADE handles deletion of analyses and care items.
+     * Executes on background thread, result delivered via callback.
+     *
+     * @param plant Plant to delete
+     * @param callback Callback for success/error
+     */
+    public void deletePlant(Plant plant, RepositoryCallback<Void> callback) {
+        ioExecutor.execute(() -> {
+            try {
+                // Get all analysis photo paths for cleanup
+                List<String> photoPaths = analysisDao.getPhotoPathsForPlantSync(plant.id);
+
+                // Delete analysis photo files
+                for (String photoPath : photoPaths) {
+                    if (photoPath != null && !photoPath.isEmpty()) {
+                        java.io.File photoFile = new java.io.File(photoPath);
+                        if (photoFile.exists()) {
+                            photoFile.delete();
+                        }
+                    }
+                }
+
+                // Delete plant thumbnail file
+                if (plant.thumbnailPath != null && !plant.thumbnailPath.isEmpty()) {
+                    java.io.File thumbnailFile = new java.io.File(plant.thumbnailPath);
+                    if (thumbnailFile.exists()) {
+                        thumbnailFile.delete();
+                    }
+                }
+
+                // Delete plant from database (CASCADE deletes analyses and care items)
+                plantDao.deletePlant(plant);
+
+                callback.onSuccess(null);
+            } catch (Exception e) {
+                callback.onError(e);
+            }
+        });
+    }
 }

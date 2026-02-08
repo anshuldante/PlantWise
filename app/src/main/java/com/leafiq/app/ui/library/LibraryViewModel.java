@@ -6,25 +6,28 @@ import androidx.annotation.NonNull;
 import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LiveData;
 
-import com.leafiq.app.data.db.AppDatabase;
-import com.leafiq.app.data.db.PlantDao;
+import com.leafiq.app.LeafIQApplication;
 import com.leafiq.app.data.entity.Plant;
+import com.leafiq.app.data.repository.PlantRepository;
 
 import java.util.List;
 
 public class LibraryViewModel extends AndroidViewModel {
 
-    private final PlantDao plantDao;
+    private final PlantRepository repository;
     private final LiveData<List<Plant>> allPlants;
 
     public LibraryViewModel(@NonNull Application application) {
         super(application);
-        AppDatabase db = AppDatabase.getInstance(application);
-        plantDao = db.plantDao();
-        allPlants = plantDao.getAllPlants();
+        repository = ((LeafIQApplication) application).getPlantRepository();
+        allPlants = repository.getAllPlants();
     }
 
     public LiveData<List<Plant>> getAllPlants() {
         return allPlants;
+    }
+
+    public void deletePlant(Plant plant, PlantRepository.RepositoryCallback<Void> callback) {
+        repository.deletePlant(plant, callback);
     }
 }
