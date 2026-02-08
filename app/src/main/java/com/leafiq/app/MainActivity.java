@@ -12,7 +12,7 @@ import androidx.fragment.app.Fragment;
 
 import com.leafiq.app.ui.camera.CameraActivity;
 import com.leafiq.app.ui.library.LibraryFragment;
-import com.leafiq.app.ui.settings.SettingsFragment;
+import com.leafiq.app.ui.timeline.TimelineFragment;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 
 public class MainActivity extends AppCompatActivity {
@@ -58,8 +58,8 @@ public class MainActivity extends AppCompatActivity {
             } else if (itemId == R.id.nav_camera) {
                 startActivity(new Intent(this, CameraActivity.class));
                 return false; // Don't select camera tab, it's an activity
-            } else if (itemId == R.id.nav_settings) {
-                loadFragment(new SettingsFragment());
+            } else if (itemId == R.id.nav_timeline) {
+                loadFragment(new TimelineFragment());
                 return true;
             }
             return false;
