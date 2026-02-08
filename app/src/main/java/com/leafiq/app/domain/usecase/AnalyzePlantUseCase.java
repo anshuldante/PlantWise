@@ -135,4 +135,60 @@ public class AnalyzePlantUseCase {
             }
         });
     }
+
+    /**
+     * Executes the plant analysis pipeline with user corrections.
+     * Runs entirely on background thread (networkExecutor).
+     *
+     * @param imageUri URI of the plant photo
+     * @param plantId Plant ID if re-analyzing existing plant, null for new plant
+     * @param correctedName User-corrected plant name (null if not corrected)
+     * @param additionalContext Additional user-provided context (null if none)
+     * @param provider AI provider to use (created by caller via AIProviderFactory)
+     * @param callback Callback for result delivery
+     */
+    public void executeWithCorrections(
+            Uri imageUri,
+            String plantId,
+            String correctedName,
+            String additionalContext,
+            AIProvider provider,
+            Callback callback) {
+        networkExecutor.execute(() -> {
+            try {
+                // 1. Check vision support (fail early)
+                if (!aiAnalysisService.supportsVision(provider)) {
+                    callback.onVisionNotSupported(provider.getDisplayName());
+                    return;
+                }
+
+                // 2. Preprocess image to base64
+                String base64Image = imagePreprocessor.prepareForApi(imageUri);
+
+                // 3. Load existing plant context (if re-analyzing)
+                List<Analysis> previousAnalyses = null;
+                String location = null;
+                if (plantId != null) {
+                    Plant existingPlant = plantRepository.getPlantByIdSync(plantId);
+                    if (existingPlant != null) {
+                        location = existingPlant.location;
+                    }
+                    previousAnalyses = plantRepository.getRecentAnalysesSync(plantId);
+                }
+
+                // 4. Call AI analysis service with corrections
+                PlantAnalysisResult result = aiAnalysisService.analyzeWithCorrections(
+                        provider, base64Image, correctedName,
+                        additionalContext, previousAnalyses, location);
+
+                // 5. Success - deliver result
+                callback.onSuccess(result);
+
+            } catch (IOException e) {
+                callback.onError("Failed to process image: " + e.getMessage());
+            } catch (AIProviderException e) {
+                callback.onError("Re-analysis failed: " + e.getMessage());
+            }
+        });
+    }
 }

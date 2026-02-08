@@ -4,6 +4,7 @@ import androidx.lifecycle.LiveData;
 import androidx.room.Dao;
 import androidx.room.Insert;
 import androidx.room.Query;
+import androidx.room.Update;
 
 import com.leafiq.app.data.entity.Analysis;
 
@@ -22,6 +23,12 @@ public interface AnalysisDao {
 
     @Insert
     void insertAnalysis(Analysis analysis);
+
+    @Update
+    void updateAnalysis(Analysis analysis);
+
+    @Query("DELETE FROM analyses WHERE id = :analysisId")
+    void deleteAnalysisById(String analysisId);
 
     @Query("SELECT photo_path FROM analyses WHERE plant_id = :plantId AND photo_path IS NOT NULL")
     List<String> getPhotoPathsForPlantSync(String plantId);

@@ -62,6 +62,33 @@ public class AIAnalysisService {
     }
 
     /**
+     * Analyzes a plant photo with user corrections using the specified AI provider.
+     * Builds correction prompt with context and calls provider API.
+     *
+     * @param provider The AI provider to use (created by caller)
+     * @param base64Image Base64-encoded image string
+     * @param correctedName User-corrected plant name (null if not corrected)
+     * @param additionalContext Additional user-provided context (null if none)
+     * @param previousAnalyses List of previous analyses for this plant (null if first analysis)
+     * @param location Plant location (null if not set)
+     * @return PlantAnalysisResult containing corrected identification, health assessment, and care plan
+     * @throws AIProviderException if API call fails
+     * @throws IOException if network/IO error occurs
+     */
+    public PlantAnalysisResult analyzeWithCorrections(
+            AIProvider provider,
+            String base64Image,
+            String correctedName,
+            String additionalContext,
+            List<Analysis> previousAnalyses,
+            String location)
+            throws AIProviderException, IOException {
+        String prompt = PromptBuilder.buildCorrectionPrompt(
+                correctedName, additionalContext, previousAnalyses, location);
+        return provider.analyzePhoto(base64Image, prompt);
+    }
+
+    /**
      * Checks if the provider supports vision (image analysis).
      * Text-only providers (like Perplexity's sonar model) will return false.
      *

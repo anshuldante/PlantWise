@@ -55,6 +55,47 @@ public class PromptBuilder {
         return sb.toString();
     }
 
+    public static String buildCorrectionPrompt(
+            @Nullable String correctedName,
+            @Nullable String additionalContext,
+            @Nullable List<Analysis> previousAnalyses,
+            @Nullable String location) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("You are an expert botanist and plant care specialist. ");
+        sb.append("The user has provided corrections to a previous analysis. ");
+        sb.append("Please re-analyze based on the updated information.\n\n");
+
+        if (correctedName != null && !correctedName.isEmpty()) {
+            sb.append("The user confirms this plant is: ").append(correctedName).append("\n");
+            sb.append("Use this as the correct identification. Focus on health assessment and care plan.\n");
+        }
+
+        if (location != null && !location.isEmpty()) {
+            sb.append("Location: ").append(location).append("\n");
+        }
+
+        if (additionalContext != null && !additionalContext.isEmpty()) {
+            sb.append("\nAdditional context from the user:\n");
+            sb.append(additionalContext).append("\n");
+            sb.append("\nIncorporate this information into your assessment.\n");
+        }
+
+        if (previousAnalyses != null && !previousAnalyses.isEmpty()) {
+            sb.append("\nPrevious analyses for this plant:\n");
+            for (Analysis a : previousAnalyses) {
+                sb.append("- ").append(formatTimestamp(a.createdAt))
+                  .append(": Health ").append(a.healthScore)
+                  .append("/10, Summary: ").append(a.summary).append("\n");
+            }
+        }
+
+        sb.append("\nRespond ONLY with valid JSON in this exact format ");
+        sb.append("(no markdown, no backticks, no explanatory text before or after):\n");
+        sb.append(getJsonTemplate());
+        sb.append("\n\nBe specific and actionable.");
+        return sb.toString();
+    }
+
     private static String formatTimestamp(long timestamp) {
         if (timestamp <= 0) return "Unknown date";
         SimpleDateFormat sdf = new SimpleDateFormat("MMM d, yyyy", Locale.US);

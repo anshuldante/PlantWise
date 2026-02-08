@@ -116,6 +116,14 @@ public class PlantRepository {
         return analysisDao.getRecentAnalysesSync(plantId);
     }
 
+    /**
+     * Synchronously gets an analysis by ID.
+     * MUST be called from background thread.
+     */
+    public Analysis getAnalysisByIdSync(String analysisId) {
+        return analysisDao.getAnalysisById(analysisId);
+    }
+
     // ==================== Write Methods ====================
     // All write operations execute on ioExecutor
 
@@ -218,6 +226,68 @@ public class PlantRepository {
             try {
                 plantDao.updatePlant(plant);
                 callback.onSuccess(null);
+            } catch (Exception e) {
+                callback.onError(e);
+            }
+        });
+    }
+
+    /**
+     * Updates an analysis in the database.
+     * Executes on background thread, result delivered via callback.
+     *
+     * @param analysis Analysis to update
+     * @param callback Callback for success/error
+     */
+    public void updateAnalysis(Analysis analysis, RepositoryCallback<Void> callback) {
+        ioExecutor.execute(() -> {
+            try {
+                analysisDao.updateAnalysis(analysis);
+                callback.onSuccess(null);
+            } catch (Exception e) {
+                callback.onError(e);
+            }
+        });
+    }
+
+    /**
+     * Deletes an analysis from the database.
+     * Executes on background thread, result delivered via callback.
+     *
+     * @param analysisId Analysis ID to delete
+     * @param callback Callback for success/error
+     */
+    public void deleteAnalysis(String analysisId, RepositoryCallback<Void> callback) {
+        ioExecutor.execute(() -> {
+            try {
+                analysisDao.deleteAnalysisById(analysisId);
+                callback.onSuccess(null);
+            } catch (Exception e) {
+                callback.onError(e);
+            }
+        });
+    }
+
+    /**
+     * Updates a plant's common name.
+     * Executes on background thread, result delivered via callback.
+     *
+     * @param plantId Plant ID
+     * @param newName New common name
+     * @param callback Callback for success/error
+     */
+    public void updatePlantName(String plantId, String newName, RepositoryCallback<Void> callback) {
+        ioExecutor.execute(() -> {
+            try {
+                Plant plant = plantDao.getPlantByIdSync(plantId);
+                if (plant != null) {
+                    plant.commonName = newName;
+                    plant.updatedAt = System.currentTimeMillis();
+                    plantDao.updatePlant(plant);
+                    callback.onSuccess(null);
+                } else {
+                    callback.onError(new Exception("Plant not found"));
+                }
             } catch (Exception e) {
                 callback.onError(e);
             }
