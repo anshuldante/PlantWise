@@ -316,12 +316,22 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
+            <!-- Correct This Button -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_correct"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Correct this"
+                android:visibility="gone"
+                style="?attr/materialButtonOutlinedStyle" />
+
             <!-- Save Button -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_save"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="24dp"
+                android:layout_marginTop="8dp"
                 android:layout_marginBottom="16dp"
                 android:text="@string/save_to_library" />
 

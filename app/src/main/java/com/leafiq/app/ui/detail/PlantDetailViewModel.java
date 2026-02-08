@@ -41,4 +41,8 @@ public class PlantDetailViewModel extends AndroidViewModel {
     public void deletePlant(Plant plant, PlantRepository.RepositoryCallback<Void> callback) {
         repository.deletePlant(plant, callback);
     }
+
+    public void updateAnalysis(Analysis analysis, PlantRepository.RepositoryCallback<Void> callback) {
+        repository.updateAnalysis(analysis, callback);
+    }
 }

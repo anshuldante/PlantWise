@@ -68,6 +68,7 @@ public class AnalysisActivity extends AppCompatActivity {
     private MaterialCardView funFactCard;
     private TextView funFactText;
     private MaterialButton saveButton;
+    private MaterialButton correctButton;
     private MaterialButton retryButton;
 
     private Uri imageUri;
@@ -113,6 +114,7 @@ public class AnalysisActivity extends AppCompatActivity {
 
         // Set up button click listeners
         saveButton.setOnClickListener(v -> handleSaveClick());
+        correctButton.setOnClickListener(v -> showCorrectionDialog());
         retryButton.setOnClickListener(v -> handleRetryClick());
 
         // Analysis will be triggered after copyImageToLocal() completes
@@ -139,6 +141,7 @@ public class AnalysisActivity extends AppCompatActivity {
         funFactCard = findViewById(R.id.fun_fact_card);
         funFactText = findViewById(R.id.fun_fact_text);
         saveButton = findViewById(R.id.btn_save);
+        correctButton = findViewById(R.id.btn_correct);
         retryButton = findViewById(R.id.btn_retry);
     }
 
@@ -335,6 +338,7 @@ public class AnalysisActivity extends AppCompatActivity {
         resultsContainer.setVisibility(View.VISIBLE);
         loadingContainer.setVisibility(View.GONE);
         errorContainer.setVisibility(View.GONE);
+        correctButton.setVisibility(View.VISIBLE);
 
         if (analysisResult.identification != null) {
             plantCommonName.setText(analysisResult.identification.commonName);
@@ -550,6 +554,133 @@ public class AnalysisActivity extends AppCompatActivity {
             .setNegativeButton("Choose Different Photo", (d, w) -> finish())
             .setCancelable(false)
             .show();
+    }
+
+    /**
+     * Shows correction dialog for user to provide corrections to AI analysis.
+     * Allows re-analysis with corrections or saving field corrections without re-analysis.
+     */
+    private void showCorrectionDialog() {
+        if (analysisResult == null) return;
+
+        // Inflate dialog layout
+        View dialogView = getLayoutInflater().inflate(R.layout.dialog_correction, null);
+        com.google.android.material.textfield.TextInputEditText nameInput = dialogView.findViewById(R.id.correct_name_input);
+        com.google.android.material.textfield.TextInputEditText healthInput = dialogView.findViewById(R.id.correct_health_input);
+        com.google.android.material.textfield.TextInputEditText contextInput = dialogView.findViewById(R.id.additional_context_input);
+
+        // Pre-fill current values
+        if (analysisResult.identification != null && analysisResult.identification.commonName != null) {
+            nameInput.setText(analysisResult.identification.commonName);
+        }
+        if (analysisResult.healthAssessment != null) {
+            healthInput.setText(String.valueOf(analysisResult.healthAssessment.score));
+        }
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+            .setTitle("Correct Analysis")
+            .setView(dialogView)
+            .setPositiveButton("Re-analyze", null) // Set to null to override later
+            .setNeutralButton("Save Without Re-analysis", null)
+            .setNegativeButton("Cancel", null)
+            .create();
+
+        dialog.setOnShowListener(dialogInterface -> {
+            // Override positive button to validate before closing
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+                String correctedName = nameInput.getText() != null ? nameInput.getText().toString().trim() : "";
+                String healthText = healthInput.getText() != null ? healthInput.getText().toString().trim() : "";
+                String additionalContext = contextInput.getText() != null ? contextInput.getText().toString().trim() : "";
+
+                // Validate health score if provided
+                int correctedHealth = 0;
+                if (!healthText.isEmpty()) {
+                    try {
+                        correctedHealth = Integer.parseInt(healthText);
+                        if (correctedHealth < 1 || correctedHealth > 10) {
+                            Toast.makeText(this, "Health score must be between 1 and 10", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                    } catch (NumberFormatException e) {
+                        Toast.makeText(this, "Invalid health score", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                }
+
+                // Check if name changed (different from original)
+                String originalName = analysisResult.identification != null ? analysisResult.identification.commonName : "";
+                boolean nameChanged = !correctedName.equals(originalName);
+
+                // Check if there are any corrections to apply
+                if (!nameChanged && additionalContext.isEmpty()) {
+                    Toast.makeText(this, "Please provide corrections or additional context", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
+                // Close dialog
+                dialog.dismiss();
+
+                // Start re-analysis with corrections
+                Uri uriToUse = localImageUri != null ? localImageUri : imageUri;
+                String nameToSend = nameChanged ? correctedName : null;
+                viewModel.reanalyzeWithCorrections(uriToUse, plantId, nameToSend, additionalContext.isEmpty() ? null : additionalContext);
+            });
+
+            // Override neutral button for save without re-analysis
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> {
+                String correctedName = nameInput.getText() != null ? nameInput.getText().toString().trim() : "";
+                String healthText = healthInput.getText() != null ? healthInput.getText().toString().trim() : "";
+
+                // Validate health score if provided
+                int correctedHealth = 0;
+                if (!healthText.isEmpty()) {
+                    try {
+                        correctedHealth = Integer.parseInt(healthText);
+                        if (correctedHealth < 1 || correctedHealth > 10) {
+                            Toast.makeText(this, "Health score must be between 1 and 10", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                    } catch (NumberFormatException e) {
+                        Toast.makeText(this, "Invalid health score", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                }
+
+                // Check if anything changed
+                String originalName = analysisResult.identification != null ? analysisResult.identification.commonName : "";
+                int originalHealth = analysisResult.healthAssessment != null ? analysisResult.healthAssessment.score : 0;
+                boolean nameChanged = !correctedName.isEmpty() && !correctedName.equals(originalName);
+                boolean healthChanged = correctedHealth > 0 && correctedHealth != originalHealth;
+
+                if (!nameChanged && !healthChanged) {
+                    Toast.makeText(this, "No changes to save", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
+                // Close dialog
+                dialog.dismiss();
+
+                // Update displayed values immediately
+                if (nameChanged) {
+                    plantCommonName.setText(correctedName);
+                    if (analysisResult.identification != null) {
+                        analysisResult.identification.commonName = correctedName;
+                    }
+                }
+                if (healthChanged) {
+                    healthScore.setText(String.valueOf(correctedHealth));
+                    setHealthScoreColor(correctedHealth);
+                    if (analysisResult.healthAssessment != null) {
+                        analysisResult.healthAssessment.score = correctedHealth;
+                    }
+                }
+
+                // Save via ViewModel (Note: this is simplified - full implementation would need analysisId)
+                Toast.makeText(this, "Corrections will be saved when you tap 'Save to Library'", Toast.LENGTH_SHORT).show();
+            });
+        });
+
+        dialog.show();
     }
 
     @Override

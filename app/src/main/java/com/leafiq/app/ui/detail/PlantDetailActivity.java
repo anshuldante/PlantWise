@@ -52,11 +52,13 @@ public class PlantDetailActivity extends AppCompatActivity {
     private RecyclerView analysisHistory;
     private FloatingActionButton fabReanalyze;
     private MaterialButton deleteButton;
+    private MaterialButton correctButton;
     private TextInputEditText nicknameInput;
     private AutoCompleteTextView locationInput;
 
     private String plantId;
     private Plant currentPlant;
+    private Analysis latestAnalysis;
     private AnalysisHistoryAdapter adapter;
 
     @Override
@@ -84,6 +86,7 @@ public class PlantDetailActivity extends AppCompatActivity {
         });
 
         deleteButton.setOnClickListener(v -> showDeleteConfirmation());
+        correctButton.setOnClickListener(v -> showCorrectionDialog());
     }
 
     private void initViews() {
@@ -98,6 +101,7 @@ public class PlantDetailActivity extends AppCompatActivity {
         analysisHistory = findViewById(R.id.analysis_history);
         fabReanalyze = findViewById(R.id.fab_reanalyze);
         deleteButton = findViewById(R.id.btn_delete);
+        correctButton = findViewById(R.id.btn_correct_analysis);
         nicknameInput = findViewById(R.id.nickname_input);
         locationInput = findViewById(R.id.location_input);
 
@@ -213,8 +217,10 @@ public class PlantDetailActivity extends AppCompatActivity {
 
                 // Show latest analysis summary
                 Analysis latest = analyses.get(0);
+                latestAnalysis = latest;
                 if (latest.summary != null && !latest.summary.isEmpty()) {
                     summaryCard.setVisibility(View.VISIBLE);
+                    correctButton.setVisibility(View.VISIBLE);
                     latestSummary.setText(latest.summary);
 
                     SimpleDateFormat sdf = new SimpleDateFormat("MMM d, yyyy", Locale.getDefault());
@@ -299,5 +305,140 @@ public class PlantDetailActivity extends AppCompatActivity {
                 })
                 .setNegativeButton("Cancel", null)
                 .show();
+    }
+
+    /**
+     * Shows correction dialog for user to provide corrections to past analysis.
+     * Only allows "Save Without Re-analysis" from detail screen.
+     * For re-analysis, user should use the camera FAB.
+     */
+    private void showCorrectionDialog() {
+        if (currentPlant == null || latestAnalysis == null) return;
+
+        // Inflate dialog layout
+        View dialogView = getLayoutInflater().inflate(R.layout.dialog_correction, null);
+        com.google.android.material.textfield.TextInputEditText nameInput = dialogView.findViewById(R.id.correct_name_input);
+        com.google.android.material.textfield.TextInputEditText healthInput = dialogView.findViewById(R.id.correct_health_input);
+        com.google.android.material.textfield.TextInputEditText contextInput = dialogView.findViewById(R.id.additional_context_input);
+
+        // Pre-fill current values
+        if (currentPlant.commonName != null) {
+            nameInput.setText(currentPlant.commonName);
+        }
+        healthInput.setText(String.valueOf(latestAnalysis.healthScore));
+
+        // Hide additional context field for detail screen (not used without re-analysis)
+        contextInput.setVisibility(View.GONE);
+        ((View) contextInput.getParent().getParent()).setVisibility(View.GONE);
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+            .setTitle("Correct Analysis")
+            .setView(dialogView)
+            .setPositiveButton("Save", null) // Set to null to override later
+            .setNegativeButton("Cancel", null)
+            .create();
+
+        dialog.setOnShowListener(dialogInterface -> {
+            // Override positive button to validate before closing
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+                String correctedName = nameInput.getText() != null ? nameInput.getText().toString().trim() : "";
+                String healthText = healthInput.getText() != null ? healthInput.getText().toString().trim() : "";
+
+                // Validate health score
+                int correctedHealth = 0;
+                if (!healthText.isEmpty()) {
+                    try {
+                        correctedHealth = Integer.parseInt(healthText);
+                        if (correctedHealth < 1 || correctedHealth > 10) {
+                            Toast.makeText(this, "Health score must be between 1 and 10", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                    } catch (NumberFormatException e) {
+                        Toast.makeText(this, "Invalid health score", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                }
+
+                // Check if anything changed
+                String originalName = currentPlant.commonName != null ? currentPlant.commonName : "";
+                int originalHealth = latestAnalysis.healthScore;
+                boolean nameChanged = !correctedName.isEmpty() && !correctedName.equals(originalName);
+                boolean healthChanged = correctedHealth > 0 && correctedHealth != originalHealth;
+
+                if (!nameChanged && !healthChanged) {
+                    Toast.makeText(this, "No changes to save", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
+                // Close dialog
+                dialog.dismiss();
+
+                // Update plant name if changed
+                if (nameChanged) {
+                    currentPlant.commonName = correctedName;
+                    currentPlant.updatedAt = System.currentTimeMillis();
+                    viewModel.updatePlant(currentPlant, new com.leafiq.app.data.repository.PlantRepository.RepositoryCallback<Void>() {
+                        @Override
+                        public void onSuccess(Void result) {
+                            runOnUiThread(() -> {
+                                String displayName = currentPlant.nickname != null && !currentPlant.nickname.isEmpty()
+                                    ? currentPlant.nickname : currentPlant.commonName;
+                                collapsingToolbar.setTitle(displayName != null ? displayName : "Unknown Plant");
+                                Toast.makeText(PlantDetailActivity.this, "Plant name updated", Toast.LENGTH_SHORT).show();
+                            });
+                        }
+
+                        @Override
+                        public void onError(Exception e) {
+                            runOnUiThread(() ->
+                                Toast.makeText(PlantDetailActivity.this, "Failed to update plant name", Toast.LENGTH_SHORT).show()
+                            );
+                        }
+                    });
+                }
+
+                // Update analysis health if changed
+                if (healthChanged) {
+                    final int finalCorrectedHealth = correctedHealth;
+                    latestAnalysis.healthScore = finalCorrectedHealth;
+                    currentPlant.latestHealthScore = finalCorrectedHealth;
+                    currentPlant.updatedAt = System.currentTimeMillis();
+
+                    // Update analysis
+                    viewModel.updateAnalysis(latestAnalysis, new com.leafiq.app.data.repository.PlantRepository.RepositoryCallback<Void>() {
+                        @Override
+                        public void onSuccess(Void result) {
+                            // Also update plant's latest health score
+                            viewModel.updatePlant(currentPlant, new com.leafiq.app.data.repository.PlantRepository.RepositoryCallback<Void>() {
+                                @Override
+                                public void onSuccess(Void unused) {
+                                    runOnUiThread(() -> {
+                                        healthScore.setText(String.valueOf(finalCorrectedHealth));
+                                        setHealthScoreColor(finalCorrectedHealth);
+                                        Toast.makeText(PlantDetailActivity.this, "Health score updated", Toast.LENGTH_SHORT).show();
+                                    });
+                                }
+
+                                @Override
+                                public void onError(Exception e) {
+                                    runOnUiThread(() ->
+                                        Toast.makeText(PlantDetailActivity.this, "Failed to update plant", Toast.LENGTH_SHORT).show()
+                                    );
+                                }
+                            });
+                        }
+
+                        @Override
+                        public void onError(Exception e) {
+                            runOnUiThread(() ->
+                                Toast.makeText(PlantDetailActivity.this, "Failed to update analysis", Toast.LENGTH_SHORT).show()
+                            );
+                        }
+                    });
+                }
+            });
+        });
+
+        dialog.show();
     }
 }

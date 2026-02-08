@@ -203,13 +203,23 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
+            <!-- Correct This Button -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_correct_analysis"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Correct this"
+                android:visibility="gone" />
+
             <!-- Delete Button -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_delete"
                 style="?attr/materialButtonOutlinedStyle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
+                android:layout_marginTop="8dp"
                 android:text="Delete Plant"
                 android:textColor="@color/health_bad"
                 app:icon="@android:drawable/ic_menu_delete"
