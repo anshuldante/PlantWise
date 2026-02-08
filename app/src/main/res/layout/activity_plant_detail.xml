@@ -82,7 +82,9 @@
                             android:layout_height="wrap_content"
                             android:hint="My name for this plant"
                             android:inputType="textCapWords"
-                            android:maxLines="1" />
+                            android:maxLines="1"
+                            android:singleLine="true"
+                            android:imeOptions="actionDone" />
                     </com.google.android.material.textfield.TextInputLayout>
 
                     <com.google.android.material.textfield.TextInputLayout
@@ -99,7 +101,9 @@
                             android:layout_height="wrap_content"
                             android:hint="e.g., Living Room, Balcony"
                             android:inputType="textCapWords"
-                            android:maxLines="1" />
+                            android:maxLines="1"
+                            android:singleLine="true"
+                            android:imeOptions="actionDone" />
                     </com.google.android.material.textfield.TextInputLayout>
 
                 </LinearLayout>

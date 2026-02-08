@@ -142,6 +142,17 @@ public class PlantDetailActivity extends AppCompatActivity {
             }
         });
 
+        nicknameInput.setOnEditorActionListener((v, actionId, event) -> {
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE) {
+                nicknameInput.clearFocus();
+                android.view.inputmethod.InputMethodManager imm =
+                    (android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+                if (imm != null) imm.hideSoftInputFromWindow(nicknameInput.getWindowToken(), 0);
+                return true;
+            }
+            return false;
+        });
+
         // Location auto-save on focus lost
         locationInput.setOnFocusChangeListener((v, hasFocus) -> {
             if (hasFocus) {
@@ -193,6 +204,17 @@ public class PlantDetailActivity extends AppCompatActivity {
                     });
                 }
             }
+        });
+
+        locationInput.setOnEditorActionListener((v, actionId, event) -> {
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE) {
+                locationInput.clearFocus();
+                android.view.inputmethod.InputMethodManager imm =
+                    (android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+                if (imm != null) imm.hideSoftInputFromWindow(locationInput.getWindowToken(), 0);
+                return true;
+            }
+            return false;
         });
     }
 
