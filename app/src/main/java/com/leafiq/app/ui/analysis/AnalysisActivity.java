@@ -20,6 +20,7 @@ import androidx.lifecycle.ViewModelProvider;
 import com.leafiq.app.R;
 import com.leafiq.app.data.model.PlantAnalysisResult;
 import com.leafiq.app.util.KeystoreHelper;
+import com.leafiq.app.util.PhotoQualityChecker;
 import com.bumptech.glide.Glide;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.card.MaterialCardView;
@@ -48,6 +49,7 @@ public class AnalysisActivity extends AppCompatActivity {
     public static final String EXTRA_PLANT_ID = "extra_plant_id";
 
     private ImageView imagePreview;
+    private View photoTipsContainer;
     private View loadingContainer;
     private View resultsContainer;
     private View errorContainer;
@@ -118,6 +120,7 @@ public class AnalysisActivity extends AppCompatActivity {
 
     private void initViews() {
         imagePreview = findViewById(R.id.image_preview);
+        photoTipsContainer = findViewById(R.id.photo_tips_container);
         loadingContainer = findViewById(R.id.loading_container);
         resultsContainer = findViewById(R.id.results_container);
         errorContainer = findViewById(R.id.error_container);
@@ -152,10 +155,12 @@ public class AnalysisActivity extends AppCompatActivity {
                 showLoading();
                 break;
             case SUCCESS:
+                photoTipsContainer.setVisibility(View.GONE);
                 analysisResult = state.getResult();
                 displayResults();
                 break;
             case ERROR:
+                photoTipsContainer.setVisibility(View.GONE);
                 if (state.isVisionUnsupported()) {
                     showVisionNotSupportedDialog(state.getVisionUnsupportedProvider());
                 } else {
@@ -196,14 +201,8 @@ public class AnalysisActivity extends AppCompatActivity {
                 localImageUri = Uri.fromFile(localFile);
                 android.util.Log.d("AnalysisActivity", "Image copied to: " + localImageUri);
 
-                // After copy completes, check API key and start analysis
-                runOnUiThread(() -> {
-                    if (!keystoreHelper.hasApiKey()) {
-                        promptForApiKey();
-                    } else {
-                        startAnalysis();
-                    }
-                });
+                // After copy completes, validate photo quality
+                runOnUiThread(() -> validatePhotoQuality());
 
             } catch (Exception e) {
                 android.util.Log.e("AnalysisActivity", "Failed to copy image locally: " + e.getMessage());
@@ -500,6 +499,57 @@ public class AnalysisActivity extends AppCompatActivity {
         resultsContainer.setVisibility(View.GONE);
         errorContainer.setVisibility(View.VISIBLE);
         errorMessage.setText(message);
+    }
+
+    /**
+     * Validates photo quality before starting analysis.
+     * Checks brightness, blur, and resolution on background thread.
+     */
+    private void validatePhotoQuality() {
+        executor.execute(() -> {
+            try {
+                Uri uriToCheck = localImageUri != null ? localImageUri : imageUri;
+                PhotoQualityChecker.QualityResult result =
+                    PhotoQualityChecker.checkQuality(getContentResolver(), uriToCheck);
+
+                runOnUiThread(() -> {
+                    if (result.passed) {
+                        proceedToAnalysis();
+                    } else {
+                        showQualityWarning(result.message);
+                    }
+                });
+            } catch (Exception e) {
+                // If quality check fails, proceed anyway (don't block on check failure)
+                runOnUiThread(() -> proceedToAnalysis());
+            }
+        });
+    }
+
+    /**
+     * Proceeds to analysis after quality check passes or is skipped.
+     * Checks API key first, then starts analysis.
+     */
+    private void proceedToAnalysis() {
+        if (!keystoreHelper.hasApiKey()) {
+            promptForApiKey();
+        } else {
+            startAnalysis();
+        }
+    }
+
+    /**
+     * Shows quality warning dialog with override option.
+     * @param message Specific quality issue message
+     */
+    private void showQualityWarning(String message) {
+        new AlertDialog.Builder(this)
+            .setTitle("Photo Quality Issue")
+            .setMessage(message)
+            .setPositiveButton("Use Anyway", (d, w) -> proceedToAnalysis())
+            .setNegativeButton("Choose Different Photo", (d, w) -> finish())
+            .setCancelable(false)
+            .show();
     }
 
     @Override
