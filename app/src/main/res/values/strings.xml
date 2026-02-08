@@ -41,4 +41,22 @@
     <string name="retry">Retry</string>
     <string name="cancel">Cancel</string>
     <string name="ok">OK</string>
+
+    <!-- Timeline and Analysis Detail -->
+    <string name="analysis_detail_title">Analysis Report</string>
+    <string name="health_assessment_label">Health Assessment</string>
+    <string name="care_plan_label">Care Plan</string>
+    <string name="environmental_context_label">Environmental Context</string>
+    <string name="correct_this">Correct this</string>
+    <string name="nav_timeline">Timeline</string>
+    <string name="empty_timeline_title">No analyses yet</string>
+    <string name="empty_timeline_message">Analyze your first plant to see its timeline</string>
+    <string name="filter_all">All</string>
+    <string name="filter_healthy">Healthy</string>
+    <string name="filter_needs_attention">Needs Attention</string>
+    <string name="filter_critical">Critical</string>
+    <string name="health_label_healthy">Healthy</string>
+    <string name="health_label_needs_attention">Needs Attention</string>
+    <string name="health_label_critical">Critical</string>
+    <string name="view_full_analysis">View full analysis</string>
 </resources>
