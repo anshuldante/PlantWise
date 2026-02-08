@@ -653,7 +653,14 @@ public class AnalysisActivity extends AppCompatActivity {
                 boolean healthChanged = correctedHealth > 0 && correctedHealth != originalHealth;
 
                 if (!nameChanged && !healthChanged) {
-                    Toast.makeText(this, "No changes to save", Toast.LENGTH_SHORT).show();
+                    // Check if user only provided additional context
+                    String additionalContext = contextInput.getText() != null ? contextInput.getText().toString().trim() : "";
+                    if (!additionalContext.isEmpty()) {
+                        Toast.makeText(this, "Additional context requires re-analysis. Use 'Re-analyze' instead.", Toast.LENGTH_LONG).show();
+                    } else {
+                        Toast.makeText(this, "No changes to save", Toast.LENGTH_SHORT).show();
+                    }
+                    dialog.dismiss();
                     return;
                 }
 
