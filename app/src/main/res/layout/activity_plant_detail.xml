@@ -153,6 +153,19 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
+            <!-- Delete Button -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_delete"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="Delete Plant"
+                android:textColor="@color/health_bad"
+                app:icon="@android:drawable/ic_menu_delete"
+                app:iconTint="@color/health_bad"
+                app:strokeColor="@color/health_bad" />
+
             <!-- Analysis History Label -->
             <TextView
                 android:id="@+id/history_label"

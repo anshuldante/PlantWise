@@ -6,7 +6,9 @@ import android.os.Bundle;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.TextView;
+import android.widget.Toast;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import androidx.core.content.ContextCompat;
@@ -21,6 +23,7 @@ import com.leafiq.app.ui.analysis.AnalysisActivity;
 import com.leafiq.app.ui.camera.CameraActivity;
 import com.bumptech.glide.Glide;
 import com.google.android.material.appbar.CollapsingToolbarLayout;
+import com.google.android.material.button.MaterialButton;
 import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
@@ -45,8 +48,10 @@ public class PlantDetailActivity extends AppCompatActivity {
     private TextView historyLabel;
     private RecyclerView analysisHistory;
     private FloatingActionButton fabReanalyze;
+    private MaterialButton deleteButton;
 
     private String plantId;
+    private Plant currentPlant;
     private AnalysisHistoryAdapter adapter;
 
     @Override
@@ -72,6 +77,8 @@ public class PlantDetailActivity extends AppCompatActivity {
             intent.putExtra(CameraActivity.EXTRA_PLANT_ID, plantId);
             startActivity(intent);
         });
+
+        deleteButton.setOnClickListener(v -> showDeleteConfirmation());
     }
 
     private void initViews() {
@@ -85,6 +92,7 @@ public class PlantDetailActivity extends AppCompatActivity {
         historyLabel = findViewById(R.id.history_label);
         analysisHistory = findViewById(R.id.analysis_history);
         fabReanalyze = findViewById(R.id.fab_reanalyze);
+        deleteButton = findViewById(R.id.btn_delete);
     }
 
     private void setupToolbar() {
@@ -122,6 +130,8 @@ public class PlantDetailActivity extends AppCompatActivity {
     private void displayPlant(Plant plant) {
         if (plant == null) return;
 
+        currentPlant = plant;
+
         String displayName = plant.nickname != null && !plant.nickname.isEmpty()
             ? plant.nickname : plant.commonName;
         collapsingToolbar.setTitle(displayName != null ? displayName : "Unknown Plant");
@@ -150,5 +160,39 @@ public class PlantDetailActivity extends AppCompatActivity {
         }
         ((GradientDrawable) healthScore.getBackground()).setColor(
             ContextCompat.getColor(this, colorRes));
+    }
+
+    private void showDeleteConfirmation() {
+        if (currentPlant == null) return;
+
+        String displayName = currentPlant.nickname != null && !currentPlant.nickname.isEmpty()
+                ? currentPlant.nickname
+                : (currentPlant.commonName != null && !currentPlant.commonName.isEmpty()
+                        ? currentPlant.commonName
+                        : "this plant");
+
+        new AlertDialog.Builder(this)
+                .setTitle("Delete Plant")
+                .setMessage("Delete " + displayName + "? This cannot be undone.")
+                .setPositiveButton("Delete", (dialog, which) -> {
+                    viewModel.deletePlant(currentPlant, new com.leafiq.app.data.repository.PlantRepository.RepositoryCallback<Void>() {
+                        @Override
+                        public void onSuccess(Void result) {
+                            runOnUiThread(() -> {
+                                Toast.makeText(PlantDetailActivity.this, "Plant deleted", Toast.LENGTH_SHORT).show();
+                                finish();
+                            });
+                        }
+
+                        @Override
+                        public void onError(Exception e) {
+                            runOnUiThread(() ->
+                                    Toast.makeText(PlantDetailActivity.this, "Failed to delete plant", Toast.LENGTH_SHORT).show()
+                            );
+                        }
+                    });
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 }
