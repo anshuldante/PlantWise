@@ -8,6 +8,7 @@ import com.leafiq.app.data.db.PlantDao;
 import com.leafiq.app.data.entity.Analysis;
 import com.leafiq.app.data.entity.CareItem;
 import com.leafiq.app.data.entity.Plant;
+import com.leafiq.app.data.model.AnalysisWithPlant;
 
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -95,6 +96,30 @@ public class PlantRepository {
      */
     public LiveData<List<CareItem>> getOverdueItems(long timestamp) {
         return careItemDao.getOverdueItems(timestamp);
+    }
+
+    /**
+     * Gets all analyses with plant metadata (name, thumbnail, nickname).
+     * Returns JOIN query result ordered by creation time (newest first).
+     * LiveData updates automatically when analyses or plants change.
+     * <p>
+     * Used by timeline screen to show all plant activity across library.
+     */
+    public LiveData<List<AnalysisWithPlant>> getAllAnalysesWithPlant() {
+        return analysisDao.getAllAnalysesWithPlant();
+    }
+
+    /**
+     * Gets analyses with plant metadata for a specific plant.
+     * Returns JOIN query result ordered by creation time (newest first).
+     * LiveData updates automatically when analyses or plants change.
+     * <p>
+     * Used by plant detail screen to show individual plant history.
+     *
+     * @param plantId Plant ID to get analyses for
+     */
+    public LiveData<List<AnalysisWithPlant>> getAnalysesWithPlantForPlant(String plantId) {
+        return analysisDao.getAnalysesWithPlantForPlant(plantId);
     }
 
     // ==================== Synchronous Read Methods ====================
