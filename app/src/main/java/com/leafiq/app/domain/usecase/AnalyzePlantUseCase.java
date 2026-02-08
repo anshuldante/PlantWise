@@ -102,6 +102,7 @@ public class AnalyzePlantUseCase {
 
                 // 3. Load existing plant context (if re-analyzing)
                 String knownPlantName = null;
+                String location = null;
                 List<Analysis> previousAnalyses = null;
 
                 if (plantId != null) {
@@ -109,6 +110,7 @@ public class AnalyzePlantUseCase {
                     Plant existingPlant = plantRepository.getPlantByIdSync(plantId);
                     if (existingPlant != null) {
                         knownPlantName = existingPlant.commonName;
+                        location = existingPlant.location;
                     }
 
                     previousAnalyses = plantRepository.getRecentAnalysesSync(plantId);
@@ -119,7 +121,8 @@ public class AnalyzePlantUseCase {
                         provider,
                         base64Image,
                         knownPlantName,
-                        previousAnalyses
+                        previousAnalyses,
+                        location
                 );
 
                 // 5. Success - deliver result

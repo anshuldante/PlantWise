@@ -56,16 +56,33 @@
             tools:text="Monstera deliciosa" />
 
         <TextView
+            android:id="@+id/plant_location"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_marginTop="2dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textColor="@color/text_secondary"
+            android:visibility="gone"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toEndOf="@id/plant_thumbnail"
+            app:layout_constraintTop_toBottomOf="@id/plant_scientific_name"
+            tools:text="Living Room"
+            tools:visibility="visible" />
+
+        <TextView
             android:id="@+id/last_analyzed"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="12dp"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="4dp"
             android:textAppearance="?attr/textAppearanceBodySmall"
             android:textColor="@color/text_secondary"
             app:layout_constraintBottom_toBottomOf="@id/plant_thumbnail"
             app:layout_constraintStart_toEndOf="@id/plant_thumbnail"
-            app:layout_constraintTop_toBottomOf="@id/plant_scientific_name"
+            app:layout_constraintTop_toBottomOf="@id/plant_location"
             tools:text="Last analyzed: 2 days ago" />
 
         <TextView

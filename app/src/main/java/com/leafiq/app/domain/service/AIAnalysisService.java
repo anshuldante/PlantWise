@@ -39,6 +39,7 @@ public class AIAnalysisService {
      * @param base64Image Base64-encoded image string
      * @param knownPlantName Previously identified plant name (null if first analysis)
      * @param previousAnalyses List of previous analyses for this plant (null if first analysis)
+     * @param location Plant location (null if not set) - used for location-aware care advice
      * @return PlantAnalysisResult containing identification, health assessment, and care plan
      * @throws AIProviderException if API call fails
      * @throws IOException if network/IO error occurs
@@ -46,13 +47,14 @@ public class AIAnalysisService {
     public PlantAnalysisResult analyze(AIProvider provider,
                                       String base64Image,
                                       String knownPlantName,
-                                      List<Analysis> previousAnalyses)
+                                      List<Analysis> previousAnalyses,
+                                      String location)
             throws AIProviderException, IOException {
         // Build prompt with plant context
         String prompt = PromptBuilder.buildAnalysisPrompt(
                 knownPlantName,
                 previousAnalyses,
-                null  // location not yet supported
+                location
         );
 
         // Call AI provider
