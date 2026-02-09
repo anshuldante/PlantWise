@@ -3,10 +3,12 @@ package com.leafiq.app.ui.detail;
 import android.content.Intent;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
+import android.view.Gravity;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -20,6 +22,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.leafiq.app.R;
 import com.leafiq.app.data.entity.Analysis;
+import com.leafiq.app.data.entity.CareSchedule;
 import com.leafiq.app.data.entity.Plant;
 import com.leafiq.app.ui.analysis.AnalysisActivity;
 import com.leafiq.app.ui.camera.CameraActivity;
@@ -30,6 +33,7 @@ import com.google.android.material.appbar.CollapsingToolbarLayout;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.google.android.material.switchmaterial.SwitchMaterial;
 import com.google.android.material.textfield.TextInputEditText;
 
 import java.io.File;
@@ -62,11 +66,16 @@ public class PlantDetailActivity extends AppCompatActivity {
     private AutoCompleteTextView locationInput;
     private SparklineView healthSparkline;
     private TextView sparklineHint;
+    private MaterialCardView careRemindersCard;
+    private SwitchMaterial switchReminders;
+    private LinearLayout schedulesContainer;
+    private TextView snoozeSuggestion;
 
     private String plantId;
     private Plant currentPlant;
     private Analysis latestAnalysis;
     private AnalysisHistoryAdapter adapter;
+    private List<CareSchedule> currentSchedules;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -113,8 +122,13 @@ public class PlantDetailActivity extends AppCompatActivity {
         locationInput = findViewById(R.id.location_input);
         healthSparkline = findViewById(R.id.health_sparkline);
         sparklineHint = findViewById(R.id.sparkline_hint);
+        careRemindersCard = findViewById(R.id.care_reminders_card);
+        switchReminders = findViewById(R.id.switch_reminders);
+        schedulesContainer = findViewById(R.id.schedules_container);
+        snoozeSuggestion = findViewById(R.id.snooze_suggestion);
 
         setupInputListeners();
+        setupReminderToggle();
     }
 
     private void setupInputListeners() {
@@ -266,6 +280,17 @@ public class PlantDetailActivity extends AppCompatActivity {
 
                 // Update sparkline with health score trend
                 updateSparkline(analyses, currentPlant != null ? currentPlant.latestHealthScore : 0);
+            }
+        });
+
+        // Observe care schedules
+        viewModel.getSchedulesForPlant(plantId).observe(this, schedules -> {
+            currentSchedules = schedules;
+            if (schedules != null && !schedules.isEmpty()) {
+                careRemindersCard.setVisibility(View.VISIBLE);
+                displaySchedules(schedules);
+            } else {
+                careRemindersCard.setVisibility(View.GONE);
             }
         });
     }
@@ -513,5 +538,237 @@ public class PlantDetailActivity extends AppCompatActivity {
         });
 
         dialog.show();
+    }
+
+    private void setupReminderToggle() {
+        switchReminders.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (plantId == null) return;
+
+            viewModel.toggleReminders(plantId, isChecked, new com.leafiq.app.data.repository.PlantRepository.RepositoryCallback<Void>() {
+                @Override
+                public void onSuccess(Void result) {
+                    runOnUiThread(() -> {
+                        String message = isChecked ? getString(R.string.reminders_enabled) : getString(R.string.reminders_paused);
+                        Toast.makeText(PlantDetailActivity.this, message, Toast.LENGTH_SHORT).show();
+                    });
+                }
+
+                @Override
+                public void onError(Exception e) {
+                    runOnUiThread(() -> {
+                        Toast.makeText(PlantDetailActivity.this, "Failed to update reminders", Toast.LENGTH_SHORT).show();
+                        // Revert switch state
+                        switchReminders.setChecked(!isChecked);
+                    });
+                }
+            });
+        });
+    }
+
+    private void displaySchedules(List<CareSchedule> schedules) {
+        schedulesContainer.removeAllViews();
+
+        // Set switch state from first schedule's isEnabled (all share same state)
+        if (!schedules.isEmpty()) {
+            switchReminders.setOnCheckedChangeListener(null); // Remove listener to avoid triggering during set
+            switchReminders.setChecked(schedules.get(0).isEnabled);
+            setupReminderToggle(); // Re-attach listener
+        }
+
+        boolean showSnoozeSuggestion = false;
+
+        for (CareSchedule schedule : schedules) {
+            // Create schedule row
+            View scheduleRow = createScheduleRow(schedule);
+            schedulesContainer.addView(scheduleRow);
+
+            // Check for snooze suggestion marker
+            if (schedule.notes != null && schedule.notes.contains("[SUGGEST_ADJUST]")) {
+                showSnoozeSuggestion = true;
+            }
+        }
+
+        snoozeSuggestion.setVisibility(showSnoozeSuggestion ? View.VISIBLE : View.GONE);
+    }
+
+    private View createScheduleRow(CareSchedule schedule) {
+        // Create horizontal LinearLayout for schedule row
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        rowParams.topMargin = (int) (8 * getResources().getDisplayMetrics().density); // 8dp
+        row.setLayoutParams(rowParams);
+        row.setPadding(
+                (int) (12 * getResources().getDisplayMetrics().density),
+                (int) (12 * getResources().getDisplayMetrics().density),
+                (int) (12 * getResources().getDisplayMetrics().density),
+                (int) (12 * getResources().getDisplayMetrics().density)
+        );
+        row.setBackground(ContextCompat.getDrawable(this, R.drawable.health_score_background));
+        row.setClickable(true);
+        row.setFocusable(true);
+
+        // Care type emoji
+        TextView emojiView = new TextView(this);
+        emojiView.setTextSize(24);
+        emojiView.setText(getCareTypeEmoji(schedule.careType));
+        LinearLayout.LayoutParams emojiParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        emojiParams.rightMargin = (int) (12 * getResources().getDisplayMetrics().density); // 12dp
+        emojiView.setLayoutParams(emojiParams);
+        row.addView(emojiView);
+
+        // Vertical inner layout
+        LinearLayout inner = new LinearLayout(this);
+        inner.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams innerParams = new LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                1.0f
+        );
+        inner.setLayoutParams(innerParams);
+
+        // Care type name + frequency
+        TextView nameView = new TextView(this);
+        nameView.setText(getCareTypeName(schedule.careType) + " • " + getString(R.string.every_x_days, schedule.frequencyDays));
+        nameView.setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyMedium);
+        nameView.setTextColor(ContextCompat.getColor(this, R.color.text_primary));
+        inner.addView(nameView);
+
+        // Source label
+        TextView sourceView = new TextView(this);
+        sourceView.setText(schedule.isCustom ? getString(R.string.customized_by_you) : getString(R.string.suggested_by_ai));
+        sourceView.setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodySmall);
+        sourceView.setTextColor(ContextCompat.getColor(this, schedule.isCustom ? R.color.md_theme_primary : R.color.text_secondary));
+        inner.addView(sourceView);
+
+        row.addView(inner);
+
+        // Set click listener to open frequency picker
+        row.setOnClickListener(v -> showFrequencyPicker(schedule));
+
+        return row;
+    }
+
+    private String getCareTypeEmoji(String careType) {
+        switch (careType) {
+            case "water":
+                return "💧";
+            case "fertilize":
+                return "🌱";
+            case "repot":
+                return "🪴";
+            default:
+                return "✓";
+        }
+    }
+
+    private String getCareTypeName(String careType) {
+        switch (careType) {
+            case "water":
+                return "Water";
+            case "fertilize":
+                return "Fertilize";
+            case "repot":
+                return "Repot";
+            default:
+                return careType;
+        }
+    }
+
+    private void showFrequencyPicker(CareSchedule schedule) {
+        // Inflate dialog layout
+        View dialogView = getLayoutInflater().inflate(R.layout.dialog_frequency_picker, null);
+        TextView currentFrequencyLabel = dialogView.findViewById(R.id.current_frequency_label);
+        TextView scheduleSourceLabel = dialogView.findViewById(R.id.schedule_source_label);
+        com.google.android.material.textfield.TextInputEditText frequencyNumber = dialogView.findViewById(R.id.frequency_number);
+        AutoCompleteTextView frequencyUnit = dialogView.findViewById(R.id.frequency_unit);
+
+        // Set current values
+        currentFrequencyLabel.setText("Current: Every " + schedule.frequencyDays + " days");
+        scheduleSourceLabel.setText(schedule.isCustom ? getString(R.string.customized_by_you) : getString(R.string.suggested_by_ai));
+        scheduleSourceLabel.setTextColor(ContextCompat.getColor(this, schedule.isCustom ? R.color.md_theme_primary : R.color.text_secondary));
+
+        // Pre-fill with current frequency converted to appropriate unit
+        int[] converted = convertDaysToUnit(schedule.frequencyDays);
+        frequencyNumber.setText(String.valueOf(converted[0]));
+
+        // Set up unit dropdown
+        String[] units = new String[]{"days", "weeks", "months"};
+        ArrayAdapter<String> unitAdapter = new ArrayAdapter<>(this, android.R.layout.simple_dropdown_item_1line, units);
+        frequencyUnit.setAdapter(unitAdapter);
+        frequencyUnit.setText(units[converted[1]], false);
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Adjust " + getCareTypeName(schedule.careType) + " Schedule")
+                .setView(dialogView)
+                .setPositiveButton("Save", (d, which) -> {
+                    String numberText = frequencyNumber.getText() != null ? frequencyNumber.getText().toString().trim() : "";
+                    String unit = frequencyUnit.getText().toString();
+
+                    try {
+                        int number = Integer.parseInt(numberText);
+                        if (number < 1 || number > 365) {
+                            Toast.makeText(this, "Please enter a number between 1 and 365", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+
+                        int newFrequencyDays = convertUnitToDays(number, unit);
+
+                        // Update schedule
+                        viewModel.updateScheduleFrequency(schedule.id, newFrequencyDays, new com.leafiq.app.data.repository.PlantRepository.RepositoryCallback<Void>() {
+                            @Override
+                            public void onSuccess(Void result) {
+                                runOnUiThread(() -> {
+                                    Toast.makeText(PlantDetailActivity.this, "Schedule updated", Toast.LENGTH_SHORT).show();
+                                });
+                            }
+
+                            @Override
+                            public void onError(Exception e) {
+                                runOnUiThread(() -> {
+                                    Toast.makeText(PlantDetailActivity.this, "Failed to update schedule", Toast.LENGTH_SHORT).show();
+                                });
+                            }
+                        });
+                    } catch (NumberFormatException e) {
+                        Toast.makeText(this, "Invalid number", Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .create();
+
+        dialog.show();
+    }
+
+    /**
+     * Converts days to the most appropriate unit (days, weeks, or months).
+     * Returns [number, unitIndex] where unitIndex: 0=days, 1=weeks, 2=months
+     */
+    private int[] convertDaysToUnit(int days) {
+        if (days % 30 == 0 && days >= 30) {
+            return new int[]{days / 30, 2}; // months
+        } else if (days % 7 == 0 && days >= 7) {
+            return new int[]{days / 7, 1}; // weeks
+        } else {
+            return new int[]{days, 0}; // days
+        }
+    }
+
+    private int convertUnitToDays(int number, String unit) {
+        switch (unit) {
+            case "weeks":
+                return number * 7;
+            case "months":
+                return number * 30;
+            default:
+                return number;
+        }
     }
 }

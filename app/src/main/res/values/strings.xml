@@ -77,4 +77,17 @@
     <string name="quick_diagnosis_analyzing">Analyzing plant health…</string>
     <string name="quick_diagnosis_full_analysis">Want a full analysis?</string>
     <string name="dismiss">Dismiss</string>
+
+    <!-- Care Reminders -->
+    <string name="care_reminders">Care Reminders</string>
+    <string name="reminders_enabled">Reminders enabled</string>
+    <string name="reminders_paused">Reminders paused</string>
+    <string name="suggested_by_ai">Suggested by AI</string>
+    <string name="customized_by_you">Customized by you</string>
+    <string name="every_x_days">Every %d days</string>
+    <string name="adjust_schedule_suggestion">Want to adjust this schedule? Tap a care type to change frequency.</string>
+    <string name="recent_care">Recent Care</string>
+    <string name="no_care_completions">No care completions yet</string>
+    <string name="via_notification">via notification</string>
+    <string name="in_app">in app</string>
 </resources>
