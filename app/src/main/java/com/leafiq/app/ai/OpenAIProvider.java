@@ -103,7 +103,7 @@ public class OpenAIProvider implements AIProvider {
                 }
 
                 PlantAnalysisResult result = JsonParser.parsePlantAnalysis(aiText);
-                result.rawResponse = responseBody;
+                result.rawResponse = aiText;
                 return result;
             }
         } catch (JSONException | IOException e) {
