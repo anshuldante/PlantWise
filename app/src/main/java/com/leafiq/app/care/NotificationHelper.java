@@ -15,6 +15,7 @@ import com.bumptech.glide.load.resource.bitmap.CircleCrop;
 import com.leafiq.app.MainActivity;
 import com.leafiq.app.R;
 import com.leafiq.app.data.entity.CareSchedule;
+import com.leafiq.app.ui.care.CareOverviewActivity;
 import com.leafiq.app.data.entity.Plant;
 
 import java.util.List;
@@ -222,15 +223,15 @@ public class NotificationHelper {
 
     /**
      * Creates PendingIntent for tapping the notification (opens Care Overview).
-     * For now, targets MainActivity. Will be updated in Plan 07 when Care Overview is created.
      */
     private static PendingIntent createCareOverviewPendingIntent(Context context) {
-        Intent intent = new Intent(context, MainActivity.class);
+        Intent intent = new Intent(context, CareOverviewActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         return PendingIntent.getActivity(
                 context,
-                0,
+                9998, // CARE_OVERVIEW_REQUEST_CODE
                 intent,
-                PendingIntent.FLAG_IMMUTABLE
+                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT
         );
     }
 

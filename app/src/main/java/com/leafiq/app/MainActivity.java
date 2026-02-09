@@ -20,6 +20,7 @@ import androidx.fragment.app.Fragment;
 import com.leafiq.app.ai.AIProvider;
 import com.leafiq.app.ai.AIProviderFactory;
 import com.leafiq.app.ui.camera.CameraActivity;
+import com.leafiq.app.ui.care.CareOverviewActivity;
 import com.leafiq.app.ui.diagnosis.QuickDiagnosisActivity;
 import com.leafiq.app.ui.library.LibraryFragment;
 import com.leafiq.app.ui.settings.SettingsFragment;
@@ -72,8 +73,8 @@ public class MainActivity extends AppCompatActivity {
             loadFragment(new SettingsFragment());
             return true;
         } else if (itemId == R.id.action_care_overview) {
-            // Coming soon - will be wired in Plan 07
-            Toast.makeText(this, R.string.coming_soon, Toast.LENGTH_SHORT).show();
+            // Open Care Overview screen
+            startActivity(new Intent(this, CareOverviewActivity.class));
             return true;
         }
         return super.onOptionsItemSelected(item);
