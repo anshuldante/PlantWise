@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <!-- Care Overview - visible in toolbar if room -->
+    <item
+        android:id="@+id/action_care_overview"
+        android:title="@string/care_overview"
+        android:icon="@android:drawable/ic_menu_my_calendar"
+        app:showAsAction="ifRoom" />
+
+    <!-- Settings - in overflow menu -->
+    <item
+        android:id="@+id/action_settings"
+        android:title="@string/settings"
+        android:icon="@android:drawable/ic_menu_manage"
+        app:showAsAction="never" />
+
+</menu>
