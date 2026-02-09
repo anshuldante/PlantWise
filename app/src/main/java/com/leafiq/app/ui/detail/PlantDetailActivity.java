@@ -70,11 +70,15 @@ public class PlantDetailActivity extends AppCompatActivity {
     private SwitchMaterial switchReminders;
     private LinearLayout schedulesContainer;
     private TextView snoozeSuggestion;
+    private LinearLayout careHistorySection;
+    private RecyclerView careHistoryRecycler;
+    private TextView careHistoryEmpty;
 
     private String plantId;
     private Plant currentPlant;
     private Analysis latestAnalysis;
     private AnalysisHistoryAdapter adapter;
+    private CareHistoryAdapter careHistoryAdapter;
     private List<CareSchedule> currentSchedules;
 
     @Override
@@ -126,9 +130,13 @@ public class PlantDetailActivity extends AppCompatActivity {
         switchReminders = findViewById(R.id.switch_reminders);
         schedulesContainer = findViewById(R.id.schedules_container);
         snoozeSuggestion = findViewById(R.id.snooze_suggestion);
+        careHistorySection = findViewById(R.id.care_history_section);
+        careHistoryRecycler = findViewById(R.id.care_history_recycler);
+        careHistoryEmpty = findViewById(R.id.care_history_empty);
 
         setupInputListeners();
         setupReminderToggle();
+        setupCareHistoryRecycler();
     }
 
     private void setupInputListeners() {
@@ -259,6 +267,12 @@ public class PlantDetailActivity extends AppCompatActivity {
         analysisHistory.setAdapter(adapter);
     }
 
+    private void setupCareHistoryRecycler() {
+        careHistoryAdapter = new CareHistoryAdapter();
+        careHistoryRecycler.setLayoutManager(new LinearLayoutManager(this));
+        careHistoryRecycler.setAdapter(careHistoryAdapter);
+    }
+
     private void observeData() {
         viewModel.getPlant(plantId).observe(this, this::displayPlant);
         viewModel.getAnalyses(plantId).observe(this, analyses -> {
@@ -291,6 +305,35 @@ public class PlantDetailActivity extends AppCompatActivity {
                 displaySchedules(schedules);
             } else {
                 careRemindersCard.setVisibility(View.GONE);
+            }
+        });
+
+        // Observe care completions
+        viewModel.getRecentCompletionsForPlant(plantId, 10).observe(this, completions -> {
+            if (completions != null && !completions.isEmpty() && currentSchedules != null) {
+                careHistorySection.setVisibility(View.VISIBLE);
+
+                // Build careTypeMap from schedules
+                java.util.Map<String, String> careTypeMap = new java.util.HashMap<>();
+                for (CareSchedule schedule : currentSchedules) {
+                    careTypeMap.put(schedule.id, schedule.careType);
+                }
+
+                // Update adapter
+                careHistoryAdapter.setCareTypeMap(careTypeMap);
+                careHistoryAdapter.submitList(completions);
+
+                // Show/hide empty state
+                careHistoryRecycler.setVisibility(View.VISIBLE);
+                careHistoryEmpty.setVisibility(View.GONE);
+            } else if (currentSchedules != null && !currentSchedules.isEmpty()) {
+                // Have schedules but no completions yet
+                careHistorySection.setVisibility(View.VISIBLE);
+                careHistoryRecycler.setVisibility(View.GONE);
+                careHistoryEmpty.setVisibility(View.VISIBLE);
+            } else {
+                // No schedules, hide entire section
+                careHistorySection.setVisibility(View.GONE);
             }
         });
     }
