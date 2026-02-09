@@ -58,6 +58,11 @@
             android:exported="false"
             android:theme="@style/Theme.LeafIQ" />
 
+        <activity
+            android:name=".ui.diagnosis.QuickDiagnosisActivity"
+            android:exported="false"
+            android:theme="@style/Theme.LeafIQ" />
+
     </application>
 
 </manifest>
