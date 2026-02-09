@@ -221,6 +221,9 @@ public class AnalysisViewModel extends AndroidViewModel {
     /**
      * Saves a plant with analysis and care plan to the database.
      * Creates Plant, Analysis, and CareItem entities, then delegates to PlantRepository.
+     * <p>
+     * For NEW plants (plantId is null): Creates plant, analysis, and care items.
+     * For EXISTING plants (plantId not null): Updates plant fields and adds new analysis to history.
      *
      * @param imageUri URI of the plant photo
      * @param plantId Plant ID if updating existing plant, null for new plant
@@ -230,31 +233,20 @@ public class AnalysisViewModel extends AndroidViewModel {
     public void savePlant(Uri imageUri, String plantId, PlantAnalysisResult result, SaveCallback callback) {
         try {
             long now = System.currentTimeMillis();
-
-            // Create or update plant
-            Plant plant;
             boolean isNewPlant = (plantId == null);
 
+            // Extract AI-derived fields from result
+            String commonName = result.identification != null ?
+                    result.identification.commonName : "Unknown";
+            String scientificName = result.identification != null ?
+                    result.identification.scientificName : "";
+            int healthScore = result.healthAssessment != null ?
+                    result.healthAssessment.score : 5;
+
+            // Generate plantId for new plants
             if (isNewPlant) {
                 plantId = UUID.randomUUID().toString();
-                plant = new Plant();
-                plant.id = plantId;
-                plant.createdAt = now;
-            } else {
-                // For update, we'll create a new Plant object with updated fields
-                // Repository will use REPLACE strategy
-                plant = new Plant();
-                plant.id = plantId;
-                plant.createdAt = now; // Will be overwritten if plant exists
             }
-
-            plant.commonName = result.identification != null ?
-                    result.identification.commonName : "Unknown";
-            plant.scientificName = result.identification != null ?
-                    result.identification.scientificName : "";
-            plant.latestHealthScore = result.healthAssessment != null ?
-                    result.healthAssessment.score : 5;
-            plant.updatedAt = now;
 
             // Save thumbnail and photo
             String thumbnailPath = null;
@@ -266,14 +258,13 @@ public class AnalysisViewModel extends AndroidViewModel {
                 // If image save fails, continue without thumbnail/photo
                 android.util.Log.e("AnalysisViewModel", "Failed to save image: " + e.getMessage());
             }
-            plant.thumbnailPath = thumbnailPath;
 
             // Create analysis
             Analysis analysis = new Analysis();
             analysis.id = UUID.randomUUID().toString();
             analysis.plantId = plantId;
             analysis.photoPath = photoPath;
-            analysis.healthScore = plant.latestHealthScore;
+            analysis.healthScore = healthScore;
             analysis.summary = result.healthAssessment != null ?
                     result.healthAssessment.summary : "";
             analysis.rawResponse = result.rawResponse;
@@ -285,20 +276,47 @@ public class AnalysisViewModel extends AndroidViewModel {
                 careItems = buildCareItems(plantId, result.carePlan, now);
             }
 
-            // Save all entities via repository
+            // Branch on new vs existing plant
             final String finalPlantId = plantId;
-            plantRepository.savePlantWithAnalysis(plant, analysis, careItems,
-                    new PlantRepository.RepositoryCallback<Void>() {
-                        @Override
-                        public void onSuccess(Void unused) {
-                            callback.onSuccess(finalPlantId);
-                        }
+            if (isNewPlant) {
+                // NEW PLANT: Create Plant entity and save all
+                Plant plant = new Plant();
+                plant.id = finalPlantId;
+                plant.commonName = commonName;
+                plant.scientificName = scientificName;
+                plant.latestHealthScore = healthScore;
+                plant.thumbnailPath = thumbnailPath;
+                plant.createdAt = now;
+                plant.updatedAt = now;
 
-                        @Override
-                        public void onError(Exception e) {
-                            callback.onError(e.getMessage());
-                        }
-                    });
+                plantRepository.savePlantWithAnalysis(plant, analysis, careItems,
+                        new PlantRepository.RepositoryCallback<Void>() {
+                            @Override
+                            public void onSuccess(Void unused) {
+                                callback.onSuccess(finalPlantId);
+                            }
+
+                            @Override
+                            public void onError(Exception e) {
+                                callback.onError(e.getMessage());
+                            }
+                        });
+            } else {
+                // EXISTING PLANT: Update plant and add new analysis
+                plantRepository.addAnalysisToExistingPlant(finalPlantId, commonName, scientificName,
+                        healthScore, thumbnailPath, analysis, careItems,
+                        new PlantRepository.RepositoryCallback<Void>() {
+                            @Override
+                            public void onSuccess(Void unused) {
+                                callback.onSuccess(finalPlantId);
+                            }
+
+                            @Override
+                            public void onError(Exception e) {
+                                callback.onError(e.getMessage());
+                            }
+                        });
+            }
 
         } catch (Exception e) {
             callback.onError(e.getMessage());
