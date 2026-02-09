@@ -90,4 +90,9 @@
     <string name="no_care_completions">No care completions yet</string>
     <string name="via_notification">via notification</string>
     <string name="in_app">in app</string>
+    <string name="n_plants_need_care">%d plants need care</string>
+    <string name="time_to_care">Time to %s your plant</string>
+    <string name="tap_to_view_all">Tap to view all</string>
+    <string name="n_more_view_in_app">+%d more - view in app</string>
+    <string name="care_done_toast" formatted="false">%s %s</string>
 </resources>
