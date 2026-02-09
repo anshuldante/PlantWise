@@ -41,6 +41,12 @@
     <string name="care_overview">Care Overview</string>
     <string name="coming_soon">Coming soon</string>
 
+    <!-- Reminders -->
+    <string name="reminders">Reminders</string>
+    <string name="preferred_reminder_time">Preferred reminder time</string>
+    <string name="pause_all_reminders">Pause all reminders</string>
+    <string name="vacation_mode_subtitle">Vacation mode — pauses all plant care notifications</string>
+
     <!-- General -->
     <string name="error">Error</string>
     <string name="retry">Retry</string>

@@ -1,9 +1,11 @@
 package com.leafiq.app.ui.settings;
 
+import android.app.TimePickerDialog;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.LinearLayout;
 import android.widget.RadioGroup;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -16,7 +18,10 @@ import com.leafiq.app.R;
 import com.leafiq.app.util.KeystoreHelper;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.radiobutton.MaterialRadioButton;
+import com.google.android.material.switchmaterial.SwitchMaterial;
 import com.google.android.material.textfield.TextInputEditText;
+
+import java.util.Locale;
 
 public class SettingsFragment extends Fragment {
 
@@ -29,6 +34,9 @@ public class SettingsFragment extends Fragment {
     private MaterialButton saveButton;
     private TextView statusText;
     private TextView apiKeyInfo;
+    private LinearLayout reminderTimeRow;
+    private TextView reminderTimeValue;
+    private SwitchMaterial pauseRemindersSwitch;
     private KeystoreHelper keystoreHelper;
 
     @Override
@@ -52,6 +60,9 @@ public class SettingsFragment extends Fragment {
         saveButton = view.findViewById(R.id.btn_save_key);
         statusText = view.findViewById(R.id.api_key_status);
         apiKeyInfo = view.findViewById(R.id.api_key_info);
+        reminderTimeRow = view.findViewById(R.id.reminder_time_row);
+        reminderTimeValue = view.findViewById(R.id.reminder_time_value);
+        pauseRemindersSwitch = view.findViewById(R.id.pause_reminders_switch);
 
         // Set current provider selection
         String currentProvider = keystoreHelper.getProvider();
@@ -67,6 +78,7 @@ public class SettingsFragment extends Fragment {
 
         updateInfoText();
         updateStatus();
+        updateReminderSettings();
 
         providerGroup.setOnCheckedChangeListener((group, checkedId) -> {
             updateInfoText();
@@ -74,6 +86,55 @@ public class SettingsFragment extends Fragment {
         });
 
         saveButton.setOnClickListener(v -> saveSettings());
+
+        // Reminder time picker
+        reminderTimeRow.setOnClickListener(v -> showTimePicker());
+
+        // Pause reminders switch
+        pauseRemindersSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            keystoreHelper.setRemindersPaused(isChecked);
+        });
+    }
+
+    private void updateReminderSettings() {
+        // Load and display preferred reminder time
+        int[] time = keystoreHelper.getPreferredReminderTime();
+        reminderTimeValue.setText(formatTime(time[0], time[1]));
+
+        // Load pause state
+        pauseRemindersSwitch.setChecked(keystoreHelper.areRemindersPaused());
+    }
+
+    private void showTimePicker() {
+        int[] currentTime = keystoreHelper.getPreferredReminderTime();
+        TimePickerDialog picker = new TimePickerDialog(
+            requireContext(),
+            (view, hourOfDay, minute) -> {
+                keystoreHelper.savePreferredReminderTime(hourOfDay, minute);
+                reminderTimeValue.setText(formatTime(hourOfDay, minute));
+            },
+            currentTime[0],
+            currentTime[1],
+            false // Use 12-hour format by default (system setting can override)
+        );
+        picker.show();
+    }
+
+    private String formatTime(int hour, int minute) {
+        // Format time as 12-hour with AM/PM
+        String period = "AM";
+        int displayHour = hour;
+
+        if (hour == 0) {
+            displayHour = 12; // Midnight
+        } else if (hour == 12) {
+            period = "PM"; // Noon
+        } else if (hour > 12) {
+            displayHour = hour - 12;
+            period = "PM";
+        }
+
+        return String.format(Locale.US, "%d:%02d %s", displayHour, minute, period);
     }
 
     private void updateInfoText() {
