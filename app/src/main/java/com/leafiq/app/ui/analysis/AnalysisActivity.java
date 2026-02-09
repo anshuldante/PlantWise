@@ -1,30 +1,42 @@
 package com.leafiq.app.ui.analysis;
 
+import android.Manifest;
 import android.content.DialogInterface;
+import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.text.InputType;
+import android.view.Gravity;
 import android.view.View;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.lifecycle.ViewModelProvider;
 
 import com.leafiq.app.R;
+import com.leafiq.app.data.entity.CareSchedule;
 import com.leafiq.app.data.model.PlantAnalysisResult;
 import com.leafiq.app.util.KeystoreHelper;
 import com.leafiq.app.util.PhotoQualityChecker;
 import com.bumptech.glide.Glide;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.card.MaterialCardView;
+import com.google.android.material.snackbar.Snackbar;
 
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -47,6 +59,7 @@ public class AnalysisActivity extends AppCompatActivity {
 
     public static final String EXTRA_IMAGE_URI = "extra_image_uri";
     public static final String EXTRA_PLANT_ID = "extra_plant_id";
+    private static final int REQUEST_NOTIFICATION_PERMISSION = 1001;
 
     private ImageView imagePreview;
     private View photoTipsContainer;
@@ -100,6 +113,9 @@ public class AnalysisActivity extends AppCompatActivity {
 
         // Observe UI state from ViewModel
         viewModel.getUiState().observe(this, this::onUiStateChanged);
+
+        // Observe schedule update prompts for re-analysis conflicts
+        viewModel.getScheduleUpdatePrompts().observe(this, this::onScheduleUpdatePrompts);
 
         // Load image URI from intent
         String uriString = getIntent().getStringExtra(EXTRA_IMAGE_URI);
@@ -161,6 +177,7 @@ public class AnalysisActivity extends AppCompatActivity {
                 photoTipsContainer.setVisibility(View.GONE);
                 analysisResult = state.getResult();
                 displayResults();
+                showQuickDiagnosisTooltipIfNeeded();
                 break;
             case ERROR:
                 photoTipsContainer.setVisibility(View.GONE);
@@ -308,6 +325,10 @@ public class AnalysisActivity extends AppCompatActivity {
             public void onSuccess(String savedPlantId) {
                 runOnUiThread(() -> {
                     Toast.makeText(AnalysisActivity.this, "Plant saved to library!", Toast.LENGTH_SHORT).show();
+
+                    // Request notification permission on first save (Android 13+)
+                    requestNotificationPermissionIfNeeded();
+
                     finish();
                 });
             }
@@ -688,6 +709,158 @@ public class AnalysisActivity extends AppCompatActivity {
         });
 
         dialog.show();
+    }
+
+    /**
+     * Requests notification permission on first save (Android 13+).
+     * Shows rationale dialog first, then system permission dialog.
+     */
+    private void requestNotificationPermissionIfNeeded() {
+        // Check if Android 13+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            return;
+        }
+
+        // Check if already requested
+        if (keystoreHelper.hasRequestedNotificationPermission()) {
+            return;
+        }
+
+        // Check if already granted
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                == PackageManager.PERMISSION_GRANTED) {
+            keystoreHelper.setNotificationPermissionRequested();
+            return;
+        }
+
+        // Mark as requested before showing dialog (prevent repeated prompts)
+        keystoreHelper.setNotificationPermissionRequested();
+
+        // Show rationale dialog
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.enable_notifications_title)
+                .setMessage(R.string.enable_notifications_rationale)
+                .setPositiveButton(R.string.enable, (dialog, which) -> {
+                    // Request permission
+                    ActivityCompat.requestPermissions(this,
+                            new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                            REQUEST_NOTIFICATION_PERMISSION);
+                })
+                .setNegativeButton(R.string.not_now, null)
+                .show();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
+                                          @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        if (requestCode == REQUEST_NOTIFICATION_PERMISSION) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                // Permission granted - notifications will work
+                Toast.makeText(this, "Notifications enabled", Toast.LENGTH_SHORT).show();
+            } else {
+                // Permission denied - show one-time banner if not dismissed
+                if (!keystoreHelper.hasNotificationBannerDismissed()) {
+                    showNotificationPermissionBanner();
+                }
+            }
+        }
+    }
+
+    /**
+     * Shows dismissable banner for enabling notifications in settings.
+     */
+    private void showNotificationPermissionBanner() {
+        Snackbar snackbar = Snackbar.make(
+                findViewById(android.R.id.content),
+                R.string.enable_notifications_banner,
+                Snackbar.LENGTH_INDEFINITE
+        );
+
+        snackbar.setAction(R.string.open_settings, v -> {
+            // Open app notification settings
+            Intent intent = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS);
+            intent.putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName());
+            startActivity(intent);
+            snackbar.dismiss();
+        });
+
+        snackbar.addCallback(new Snackbar.Callback() {
+            @Override
+            public void onDismissed(Snackbar transientBottomBar, int event) {
+                if (event == DISMISS_EVENT_MANUAL || event == DISMISS_EVENT_SWIPE) {
+                    keystoreHelper.setNotificationBannerDismissed();
+                }
+            }
+        });
+
+        snackbar.show();
+    }
+
+    /**
+     * Shows Quick Diagnosis tooltip after first analysis completion.
+     */
+    private void showQuickDiagnosisTooltipIfNeeded() {
+        if (!keystoreHelper.hasShownQuickDiagnosisTooltip()) {
+            Toast toast = Toast.makeText(this, R.string.quick_diagnosis_tooltip, Toast.LENGTH_LONG);
+            toast.setGravity(Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL, 0, 200);
+            toast.show();
+            keystoreHelper.setQuickDiagnosisTooltipShown();
+        }
+    }
+
+    /**
+     * Handles schedule update prompts from ViewModel.
+     * Shows dialog for each user-customized schedule that conflicts with new AI data.
+     */
+    private void onScheduleUpdatePrompts(List<CareSchedule> schedules) {
+        if (schedules == null || schedules.isEmpty()) {
+            return;
+        }
+
+        // Show dialog for each conflict (in sequence)
+        for (CareSchedule schedule : schedules) {
+            showScheduleUpdateDialog(schedule);
+        }
+    }
+
+    /**
+     * Shows dialog for a single schedule update conflict.
+     */
+    private void showScheduleUpdateDialog(CareSchedule schedule) {
+        // Extract AI-recommended frequency from notes
+        if (schedule.notes == null || !schedule.notes.startsWith("AI_RECOMMENDED:")) {
+            return;
+        }
+
+        String[] parts = schedule.notes.split("\\|", 2);
+        String freqPart = parts[0].substring("AI_RECOMMENDED:".length());
+        int aiFrequency = Integer.parseInt(freqPart);
+        int currentFrequency = schedule.frequencyDays;
+
+        // Format care type for display
+        String careTypeDisplay = schedule.careType;
+        if ("water".equals(schedule.careType)) {
+            careTypeDisplay = "watering";
+        } else if ("fertilize".equals(schedule.careType)) {
+            careTypeDisplay = "fertilizing";
+        } else if ("repot".equals(schedule.careType)) {
+            careTypeDisplay = "repotting";
+        }
+
+        String message = getString(R.string.ai_recommends_update, careTypeDisplay, aiFrequency, currentFrequency);
+
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.schedule_update_title)
+                .setMessage(message)
+                .setPositiveButton(R.string.update_schedule, (dialog, which) -> {
+                    // User accepts AI recommendation
+                    viewModel.acceptScheduleUpdate(schedule);
+                    Toast.makeText(this, "Schedule updated", Toast.LENGTH_SHORT).show();
+                })
+                .setNegativeButton(R.string.keep_current, null)
+                .show();
     }
 
     @Override
