@@ -7,10 +7,12 @@ import androidx.room.Room;
 import androidx.room.RoomDatabase;
 
 import com.leafiq.app.data.entity.Analysis;
+import com.leafiq.app.data.entity.CareCompletion;
 import com.leafiq.app.data.entity.CareItem;
+import com.leafiq.app.data.entity.CareSchedule;
 import com.leafiq.app.data.entity.Plant;
 
-@Database(entities = {Plant.class, Analysis.class, CareItem.class}, version = 1, exportSchema = false)
+@Database(entities = {Plant.class, Analysis.class, CareItem.class, CareSchedule.class, CareCompletion.class}, version = 2, exportSchema = false)
 public abstract class AppDatabase extends RoomDatabase {
 
     private static volatile AppDatabase INSTANCE;
@@ -18,6 +20,8 @@ public abstract class AppDatabase extends RoomDatabase {
     public abstract PlantDao plantDao();
     public abstract AnalysisDao analysisDao();
     public abstract CareItemDao careItemDao();
+    public abstract CareScheduleDao careScheduleDao();
+    public abstract CareCompletionDao careCompletionDao();
 
     public static AppDatabase getInstance(Context context) {
         if (INSTANCE == null) {

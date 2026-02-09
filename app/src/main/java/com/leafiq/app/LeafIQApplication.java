@@ -38,6 +38,8 @@ public class LeafIQApplication extends Application {
                 db.plantDao(),
                 db.analysisDao(),
                 db.careItemDao(),
+                db.careScheduleDao(),
+                db.careCompletionDao(),
                 appExecutors.io()
         );
     }

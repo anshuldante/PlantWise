@@ -3,10 +3,14 @@ package com.leafiq.app.data.repository;
 import androidx.lifecycle.LiveData;
 
 import com.leafiq.app.data.db.AnalysisDao;
+import com.leafiq.app.data.db.CareCompletionDao;
 import com.leafiq.app.data.db.CareItemDao;
+import com.leafiq.app.data.db.CareScheduleDao;
 import com.leafiq.app.data.db.PlantDao;
 import com.leafiq.app.data.entity.Analysis;
+import com.leafiq.app.data.entity.CareCompletion;
 import com.leafiq.app.data.entity.CareItem;
+import com.leafiq.app.data.entity.CareSchedule;
 import com.leafiq.app.data.entity.Plant;
 import com.leafiq.app.data.model.AnalysisWithPlant;
 
@@ -25,6 +29,8 @@ public class PlantRepository {
     private final PlantDao plantDao;
     private final AnalysisDao analysisDao;
     private final CareItemDao careItemDao;
+    private final CareScheduleDao careScheduleDao;
+    private final CareCompletionDao careCompletionDao;
     private final Executor ioExecutor;
 
     /**
@@ -43,13 +49,18 @@ public class PlantRepository {
      * @param plantDao DAO for plant entities
      * @param analysisDao DAO for analysis entities
      * @param careItemDao DAO for care item entities
+     * @param careScheduleDao DAO for care schedule entities
+     * @param careCompletionDao DAO for care completion entities
      * @param ioExecutor Executor for background database operations
      */
     public PlantRepository(PlantDao plantDao, AnalysisDao analysisDao,
-                          CareItemDao careItemDao, Executor ioExecutor) {
+                          CareItemDao careItemDao, CareScheduleDao careScheduleDao,
+                          CareCompletionDao careCompletionDao, Executor ioExecutor) {
         this.plantDao = plantDao;
         this.analysisDao = analysisDao;
         this.careItemDao = careItemDao;
+        this.careScheduleDao = careScheduleDao;
+        this.careCompletionDao = careCompletionDao;
         this.ioExecutor = ioExecutor;
     }
 
@@ -122,6 +133,33 @@ public class PlantRepository {
         return analysisDao.getAnalysesWithPlantForPlant(plantId);
     }
 
+    /**
+     * Gets all care schedules for a plant.
+     * LiveData updates automatically when schedules change.
+     */
+    public LiveData<List<CareSchedule>> getSchedulesForPlant(String plantId) {
+        return careScheduleDao.getSchedulesForPlant(plantId);
+    }
+
+    /**
+     * Gets enabled care schedules for a plant.
+     * LiveData updates automatically when schedules change.
+     */
+    public LiveData<List<CareSchedule>> getEnabledSchedulesForPlant(String plantId) {
+        return careScheduleDao.getEnabledSchedulesForPlant(plantId);
+    }
+
+    /**
+     * Gets recent care completions for a plant.
+     * LiveData updates automatically when completions change.
+     *
+     * @param plantId Plant ID to get completions for
+     * @param limit Maximum number of completions to return
+     */
+    public LiveData<List<CareCompletion>> getRecentCompletionsForPlant(String plantId, int limit) {
+        return careCompletionDao.getRecentCompletionsForPlant(plantId, limit);
+    }
+
     // ==================== Synchronous Read Methods ====================
     // For use on background threads only (e.g., within UseCase executors)
 
@@ -147,6 +185,48 @@ public class PlantRepository {
      */
     public Analysis getAnalysisByIdSync(String analysisId) {
         return analysisDao.getAnalysisById(analysisId);
+    }
+
+    /**
+     * Synchronously gets care schedules for a plant.
+     * MUST be called from background thread.
+     */
+    public List<CareSchedule> getSchedulesByPlantIdSync(String plantId) {
+        return careScheduleDao.getSchedulesByPlantIdSync(plantId);
+    }
+
+    /**
+     * Synchronously gets due care schedules.
+     * MUST be called from background thread.
+     *
+     * @param beforeTimestamp Returns schedules where nextDue <= beforeTimestamp
+     */
+    public List<CareSchedule> getDueSchedules(long beforeTimestamp) {
+        return careScheduleDao.getDueSchedules(beforeTimestamp);
+    }
+
+    /**
+     * Synchronously gets a care schedule by ID.
+     * MUST be called from background thread.
+     */
+    public CareSchedule getScheduleByIdSync(String id) {
+        return careScheduleDao.getScheduleById(id);
+    }
+
+    /**
+     * Synchronously gets all enabled care schedules.
+     * MUST be called from background thread.
+     */
+    public List<CareSchedule> getAllEnabledSchedulesSync() {
+        return careScheduleDao.getAllEnabledSchedules();
+    }
+
+    /**
+     * Synchronously gets the last completion for a schedule.
+     * MUST be called from background thread.
+     */
+    public CareCompletion getLastCompletionForScheduleSync(String scheduleId) {
+        return careCompletionDao.getLastCompletionForSchedule(scheduleId);
     }
 
     // ==================== Write Methods ====================
@@ -441,6 +521,135 @@ public class PlantRepository {
                 // Delete plant from database (CASCADE deletes analyses and care items)
                 plantDao.deletePlant(plant);
 
+                callback.onSuccess(null);
+            } catch (Exception e) {
+                callback.onError(e);
+            }
+        });
+    }
+
+    /**
+     * Inserts a care schedule into the database.
+     * Executes on background thread, result delivered via callback.
+     *
+     * @param schedule Care schedule to insert
+     * @param callback Callback for success/error
+     */
+    public void insertSchedule(CareSchedule schedule, RepositoryCallback<Void> callback) {
+        ioExecutor.execute(() -> {
+            try {
+                careScheduleDao.insertSchedule(schedule);
+                callback.onSuccess(null);
+            } catch (Exception e) {
+                callback.onError(e);
+            }
+        });
+    }
+
+    /**
+     * Updates a care schedule in the database.
+     * Executes on background thread, result delivered via callback.
+     *
+     * @param schedule Care schedule to update
+     * @param callback Callback for success/error
+     */
+    public void updateSchedule(CareSchedule schedule, RepositoryCallback<Void> callback) {
+        ioExecutor.execute(() -> {
+            try {
+                careScheduleDao.updateSchedule(schedule);
+                callback.onSuccess(null);
+            } catch (Exception e) {
+                callback.onError(e);
+            }
+        });
+    }
+
+    /**
+     * Deletes a care schedule from the database.
+     * Executes on background thread, result delivered via callback.
+     *
+     * @param schedule Care schedule to delete
+     * @param callback Callback for success/error
+     */
+    public void deleteSchedule(CareSchedule schedule, RepositoryCallback<Void> callback) {
+        ioExecutor.execute(() -> {
+            try {
+                careScheduleDao.deleteSchedule(schedule);
+                callback.onSuccess(null);
+            } catch (Exception e) {
+                callback.onError(e);
+            }
+        });
+    }
+
+    /**
+     * Inserts a care completion into the database.
+     * Executes on background thread, result delivered via callback.
+     *
+     * @param completion Care completion to insert
+     * @param callback Callback for success/error
+     */
+    public void insertCompletion(CareCompletion completion, RepositoryCallback<Void> callback) {
+        ioExecutor.execute(() -> {
+            try {
+                careCompletionDao.insertCompletion(completion);
+                callback.onSuccess(null);
+            } catch (Exception e) {
+                callback.onError(e);
+            }
+        });
+    }
+
+    /**
+     * Marks a care task as complete.
+     * Creates a CareCompletion record, resets snooze count, and updates next due date.
+     * Executes on background thread, result delivered via callback.
+     *
+     * @param scheduleId Care schedule ID
+     * @param source Completion source ("notification_action", "in_app", "snooze")
+     * @param callback Callback for success/error
+     */
+    public void markCareComplete(String scheduleId, String source, RepositoryCallback<Void> callback) {
+        ioExecutor.execute(() -> {
+            try {
+                // Get the schedule
+                CareSchedule schedule = careScheduleDao.getScheduleById(scheduleId);
+                if (schedule == null) {
+                    callback.onError(new Exception("Schedule not found: " + scheduleId));
+                    return;
+                }
+
+                // Create completion record
+                CareCompletion completion = new CareCompletion();
+                completion.id = java.util.UUID.randomUUID().toString();
+                completion.scheduleId = scheduleId;
+                completion.completedAt = System.currentTimeMillis();
+                completion.source = source;
+                careCompletionDao.insertCompletion(completion);
+
+                // Update schedule: reset snooze count and update next due
+                schedule.snoozeCount = 0;
+                schedule.nextDue = System.currentTimeMillis() + (schedule.frequencyDays * 24L * 60 * 60 * 1000);
+                careScheduleDao.updateSchedule(schedule);
+
+                callback.onSuccess(null);
+            } catch (Exception e) {
+                callback.onError(e);
+            }
+        });
+    }
+
+    /**
+     * Deletes all care schedules for a plant.
+     * Executes on background thread, result delivered via callback.
+     *
+     * @param plantId Plant ID
+     * @param callback Callback for success/error
+     */
+    public void deleteSchedulesForPlant(String plantId, RepositoryCallback<Void> callback) {
+        ioExecutor.execute(() -> {
+            try {
+                careScheduleDao.deleteSchedulesForPlant(plantId);
                 callback.onSuccess(null);
             } catch (Exception e) {
                 callback.onError(e);
