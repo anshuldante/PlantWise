@@ -2,9 +2,12 @@ package com.leafiq.app;
 
 import android.app.Application;
 
+import com.leafiq.app.care.CareScheduleManager;
+import com.leafiq.app.care.NotificationHelper;
 import com.leafiq.app.data.db.AppDatabase;
 import com.leafiq.app.data.repository.PlantRepository;
 import com.leafiq.app.util.AppExecutors;
+import com.leafiq.app.util.KeystoreHelper;
 
 /**
  * Application class for LeafIQ.
@@ -13,6 +16,7 @@ import com.leafiq.app.util.AppExecutors;
  * Provides:
  * - AppExecutors (thread pools for background work)
  * - PlantRepository (data access layer)
+ * - CareScheduleManager (care reminder scheduling)
  * <p>
  * Activities and ViewModels can access these via:
  * <pre>
@@ -24,6 +28,7 @@ public class LeafIQApplication extends Application {
 
     private AppExecutors appExecutors;
     private PlantRepository plantRepository;
+    private CareScheduleManager careScheduleManager;
 
     @Override
     public void onCreate() {
@@ -42,6 +47,9 @@ public class LeafIQApplication extends Application {
                 db.careCompletionDao(),
                 appExecutors.io()
         );
+
+        // Create notification channel for care reminders
+        NotificationHelper.createNotificationChannel(this);
     }
 
     /**
@@ -58,5 +66,21 @@ public class LeafIQApplication extends Application {
      */
     public PlantRepository getPlantRepository() {
         return plantRepository;
+    }
+
+    /**
+     * Gets the application-wide CareScheduleManager instance.
+     * Lazy initialization on first access.
+     * Used for care reminder scheduling operations.
+     */
+    public CareScheduleManager getCareScheduleManager() {
+        if (careScheduleManager == null) {
+            careScheduleManager = new CareScheduleManager(
+                    this,
+                    plantRepository,
+                    new KeystoreHelper(this)
+            );
+        }
+        return careScheduleManager;
     }
 }
