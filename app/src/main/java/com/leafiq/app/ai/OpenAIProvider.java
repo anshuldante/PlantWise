@@ -17,17 +17,26 @@ import okhttp3.RequestBody;
 import okhttp3.Response;
 
 public class OpenAIProvider implements AIProvider {
-    private static final String API_URL = "https://api.openai.com/v1/chat/completions";
+    private static final String DEFAULT_API_URL = "https://api.openai.com/v1/chat/completions";
     private static final String MODEL = "gpt-4o";
     private final String apiKey;
+    private final String apiUrl;
     private final OkHttpClient client;
 
     public OpenAIProvider(String apiKey) {
         this.apiKey = apiKey;
+        this.apiUrl = DEFAULT_API_URL;
         this.client = new OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)
             .build();
+    }
+
+    // Package-private constructor for testing with MockWebServer
+    OpenAIProvider(String apiKey, String apiUrl, OkHttpClient client) {
+        this.apiKey = apiKey;
+        this.apiUrl = apiUrl;
+        this.client = client;
     }
 
     @Override
@@ -68,7 +77,7 @@ public class OpenAIProvider implements AIProvider {
             );
 
             Request request = new Request.Builder()
-                .url(API_URL)
+                .url(apiUrl)
                 .addHeader("Authorization", "Bearer " + apiKey)
                 .addHeader("Content-Type", "application/json")
                 .post(body)

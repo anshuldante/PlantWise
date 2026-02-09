@@ -17,18 +17,27 @@ import okhttp3.RequestBody;
 import okhttp3.Response;
 
 public class ClaudeProvider implements AIProvider {
-    private static final String API_URL = "https://api.anthropic.com/v1/messages";
+    private static final String DEFAULT_API_URL = "https://api.anthropic.com/v1/messages";
     private static final String MODEL = "claude-sonnet-4-20250514";
     private static final String API_VERSION = "2023-06-01";
     private final String apiKey;
+    private final String apiUrl;
     private final OkHttpClient client;
 
     public ClaudeProvider(String apiKey) {
         this.apiKey = apiKey;
+        this.apiUrl = DEFAULT_API_URL;
         this.client = new OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)  // AI responses can be slow
             .build();
+    }
+
+    // Package-private constructor for testing with MockWebServer
+    ClaudeProvider(String apiKey, String apiUrl, OkHttpClient client) {
+        this.apiKey = apiKey;
+        this.apiUrl = apiUrl;
+        this.client = client;
     }
 
     @Override
@@ -71,7 +80,7 @@ public class ClaudeProvider implements AIProvider {
             );
 
             Request request = new Request.Builder()
-                .url(API_URL)
+                .url(apiUrl)
                 .addHeader("x-api-key", apiKey)
                 .addHeader("anthropic-version", API_VERSION)
                 .addHeader("content-type", "application/json")

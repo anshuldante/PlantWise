@@ -17,17 +17,26 @@ import okhttp3.RequestBody;
 import okhttp3.Response;
 
 public class PerplexityProvider implements AIProvider {
-    private static final String API_URL = "https://api.perplexity.ai/chat/completions";
+    private static final String DEFAULT_API_URL = "https://api.perplexity.ai/chat/completions";
     private static final String MODEL = "sonar";
     private final String apiKey;
+    private final String apiUrl;
     private final OkHttpClient client;
 
     public PerplexityProvider(String apiKey) {
         this.apiKey = apiKey;
+        this.apiUrl = DEFAULT_API_URL;
         this.client = new OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)
             .build();
+    }
+
+    // Package-private constructor for testing with MockWebServer
+    PerplexityProvider(String apiKey, String apiUrl, OkHttpClient client) {
+        this.apiKey = apiKey;
+        this.apiUrl = apiUrl;
+        this.client = client;
     }
 
     @Override
@@ -53,7 +62,7 @@ public class PerplexityProvider implements AIProvider {
             );
 
             Request request = new Request.Builder()
-                .url(API_URL)
+                .url(apiUrl)
                 .addHeader("Authorization", "Bearer " + apiKey)
                 .addHeader("Content-Type", "application/json")
                 .post(body)
