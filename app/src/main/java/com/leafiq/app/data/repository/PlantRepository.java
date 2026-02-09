@@ -240,6 +240,75 @@ public class PlantRepository {
     }
 
     /**
+     * Adds a new analysis to an existing plant (re-analysis flow).
+     * Updates the plant's AI-derived fields while preserving user-set fields.
+     * Uses updatePlant (not insertPlant) to avoid CASCADE deletion of existing data.
+     * <p>
+     * This method is for re-analyzing existing plants. It:
+     * - Reads the existing plant to preserve nickname, location, and createdAt
+     * - Updates only AI-derived fields (commonName, scientificName, healthScore, thumbnail)
+     * - Inserts the new analysis and care items
+     * - Does NOT delete existing analyses or care items
+     * <p>
+     * Executes on background thread, result delivered via callback.
+     *
+     * @param plantId Plant ID of existing plant to update
+     * @param commonName New common name from AI analysis
+     * @param scientificName New scientific name from AI analysis
+     * @param healthScore New health score from AI analysis
+     * @param thumbnailPath New thumbnail path (if null, existing thumbnail is preserved)
+     * @param analysis New Analysis to insert
+     * @param careItems New CareItems to insert
+     * @param callback Callback for success/error
+     */
+    public void addAnalysisToExistingPlant(String plantId, String commonName, String scientificName,
+                                          int healthScore, String thumbnailPath,
+                                          Analysis analysis, List<CareItem> careItems,
+                                          RepositoryCallback<Void> callback) {
+        ioExecutor.execute(() -> {
+            try {
+                // Read existing plant
+                Plant existingPlant = plantDao.getPlantByIdSync(plantId);
+                if (existingPlant == null) {
+                    callback.onError(new Exception("Plant not found: " + plantId));
+                    return;
+                }
+
+                // Update only AI-derived fields
+                existingPlant.commonName = commonName;
+                existingPlant.scientificName = scientificName;
+                existingPlant.latestHealthScore = healthScore;
+                existingPlant.updatedAt = System.currentTimeMillis();
+
+                // Update thumbnail only if new one provided
+                if (thumbnailPath != null) {
+                    existingPlant.thumbnailPath = thumbnailPath;
+                }
+
+                // PRESERVE user-set fields:
+                // - nickname (already in existingPlant)
+                // - location (already in existingPlant)
+                // - createdAt (already in existingPlant)
+
+                // Update plant (uses @Update, not @Insert REPLACE)
+                plantDao.updatePlant(existingPlant);
+
+                // Insert new analysis (adds to history)
+                analysisDao.insertAnalysis(analysis);
+
+                // Insert new care items
+                for (CareItem item : careItems) {
+                    careItemDao.insertCareItem(item);
+                }
+
+                callback.onSuccess(null);
+            } catch (Exception e) {
+                callback.onError(e);
+            }
+        });
+    }
+
+    /**
      * Updates a plant in the database.
      * Executes on background thread, result delivered via callback.
      *
