@@ -66,6 +66,12 @@
             android:exported="false"
             android:theme="@style/Theme.LeafIQ" />
 
+        <activity
+            android:name=".ui.care.CareOverviewActivity"
+            android:parentActivityName=".MainActivity"
+            android:exported="false"
+            android:theme="@style/Theme.LeafIQ" />
+
         <!-- BroadcastReceiver for care reminder alarms and notification actions -->
         <receiver android:name=".care.CareReminderReceiver"
             android:exported="false">

@@ -39,7 +39,18 @@
 
     <!-- Care Overview -->
     <string name="care_overview">Care Overview</string>
+    <string name="care_overview_title">Care Overview</string>
     <string name="coming_soon">Coming soon</string>
+    <string name="today">Today</string>
+    <string name="this_week">This Week</string>
+    <string name="recently_completed">Recently Completed</string>
+    <string name="all_caught_up">All caught up! No tasks for today.</string>
+    <string name="no_upcoming">No upcoming tasks this week.</string>
+    <string name="no_recent_completions">No recent completions.</string>
+    <string name="snooze_6_hours">In 6 hours</string>
+    <string name="snooze_tomorrow">Tomorrow</string>
+    <string name="snooze_next_due">Next due window</string>
+    <string name="choose_snooze">Snooze for...</string>
 
     <!-- Reminders -->
     <string name="reminders">Reminders</string>
