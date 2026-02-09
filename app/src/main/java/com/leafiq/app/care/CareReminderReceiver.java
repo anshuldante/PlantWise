@@ -4,6 +4,8 @@ import android.app.NotificationManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.os.Handler;
+import android.os.Looper;
 import android.widget.Toast;
 
 import com.leafiq.app.LeafIQApplication;
@@ -12,6 +14,7 @@ import com.leafiq.app.data.entity.Plant;
 import com.leafiq.app.data.repository.PlantRepository;
 import com.leafiq.app.util.KeystoreHelper;
 
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
 
@@ -100,11 +103,18 @@ public class CareReminderReceiver extends BroadcastReceiver {
             return;
         }
 
-        // TODO (Plan 06): Build and show grouped notifications
-        // For now, just log the due schedules
+        // Build list of DueScheduleInfo objects (schedule + plant)
+        List<NotificationHelper.DueScheduleInfo> dueScheduleInfoList = new ArrayList<>();
         for (CareSchedule schedule : dueSchedules) {
-            android.util.Log.d("CareReminderReceiver",
-                    "Due: " + schedule.careType + " for plant " + schedule.plantId);
+            Plant plant = repository.getPlantByIdSync(schedule.plantId);
+            if (plant != null) {
+                dueScheduleInfoList.add(new NotificationHelper.DueScheduleInfo(schedule, plant));
+            }
+        }
+
+        // Build and show grouped notifications
+        if (!dueScheduleInfoList.isEmpty()) {
+            NotificationHelper.buildGroupedNotification(context, dueScheduleInfoList);
         }
 
         // Reschedule for tomorrow
@@ -131,21 +141,18 @@ public class CareReminderReceiver extends BroadcastReceiver {
         Plant plant = repository.getPlantByIdSync(schedule.plantId);
         String plantName = plant != null && plant.nickname != null && !plant.nickname.isEmpty()
                 ? plant.nickname
-                : (plant != null ? plant.commonName : "plant");
+                : (plant != null && plant.commonName != null && !plant.commonName.isEmpty()
+                        ? plant.commonName : "plant");
 
         // Mark care as complete
         repository.markCareComplete(scheduleId, "notification_action", new PlantRepository.RepositoryCallback<Void>() {
             @Override
             public void onSuccess(Void result) {
                 // Dismiss notification
-                NotificationManager notificationManager =
-                        (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-                if (notificationManager != null) {
-                    notificationManager.cancel(scheduleId.hashCode());
-                }
+                NotificationHelper.dismissNotification(context, scheduleId);
 
                 // Show toast on main thread
-                android.os.Handler mainHandler = new android.os.Handler(context.getMainLooper());
+                Handler mainHandler = new Handler(Looper.getMainLooper());
                 mainHandler.post(() -> {
                     String careVerb = getCareVerb(schedule.careType);
                     Toast.makeText(context, careVerb + " " + plantName, Toast.LENGTH_SHORT).show();
@@ -207,11 +214,7 @@ public class CareReminderReceiver extends BroadcastReceiver {
             @Override
             public void onSuccess(Void result) {
                 // Dismiss notification
-                NotificationManager notificationManager =
-                        (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-                if (notificationManager != null) {
-                    notificationManager.cancel(scheduleId.hashCode());
-                }
+                NotificationHelper.dismissNotification(context, scheduleId);
 
                 // Reschedule alarm
                 scheduleManager.scheduleNextAlarm();
