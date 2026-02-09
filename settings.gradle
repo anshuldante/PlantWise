@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "PlantWise"
+rootProject.name = "LeafIQ"
 include ':app'
