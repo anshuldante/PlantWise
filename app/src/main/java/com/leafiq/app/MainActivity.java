@@ -2,8 +2,11 @@ package com.leafiq.app;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.view.GestureDetector;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.MotionEvent;
+import android.view.View;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
@@ -14,15 +17,20 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.fragment.app.Fragment;
 
+import com.leafiq.app.ai.AIProvider;
+import com.leafiq.app.ai.AIProviderFactory;
 import com.leafiq.app.ui.camera.CameraActivity;
+import com.leafiq.app.ui.diagnosis.QuickDiagnosisActivity;
 import com.leafiq.app.ui.library.LibraryFragment;
 import com.leafiq.app.ui.settings.SettingsFragment;
 import com.leafiq.app.ui.timeline.TimelineFragment;
+import com.leafiq.app.util.KeystoreHelper;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 
 public class MainActivity extends AppCompatActivity {
 
     private BottomNavigationView bottomNav;
+    private GestureDetector gestureDetector;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -42,6 +50,7 @@ public class MainActivity extends AppCompatActivity {
 
         bottomNav = findViewById(R.id.bottom_navigation);
         setupBottomNavigation();
+        setupLongPressGesture();
 
         // Load default fragment
         if (savedInstanceState == null) {
@@ -101,5 +110,60 @@ public class MainActivity extends AppCompatActivity {
             .beginTransaction()
             .replace(R.id.fragment_container, fragment)
             .commit();
+    }
+
+    private void setupLongPressGesture() {
+        gestureDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
+            @Override
+            public void onLongPress(MotionEvent e) {
+                // Get camera nav item bounds
+                View cameraNavItem = bottomNav.findViewById(R.id.nav_camera);
+                if (cameraNavItem == null) return;
+
+                int[] location = new int[2];
+                cameraNavItem.getLocationOnScreen(location);
+                int left = location[0];
+                int top = location[1];
+                int right = left + cameraNavItem.getWidth();
+                int bottom = top + cameraNavItem.getHeight();
+
+                // Check if long-press was within camera item bounds
+                float x = e.getRawX();
+                float y = e.getRawY();
+                if (x >= left && x <= right && y >= top && y <= bottom) {
+                    startQuickDiagnosis();
+                }
+            }
+        });
+
+        bottomNav.setOnTouchListener((v, event) -> {
+            gestureDetector.onTouchEvent(event);
+            return false; // Allow normal tap handling
+        });
+    }
+
+    private void startQuickDiagnosis() {
+        // Check if current provider supports vision
+        KeystoreHelper keystoreHelper = new KeystoreHelper(this);
+        String providerName = keystoreHelper.getProvider();
+        String apiKey = keystoreHelper.getApiKey();
+
+        if (apiKey == null || apiKey.trim().isEmpty()) {
+            Toast.makeText(this, R.string.quick_diagnosis_provider_required, Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        try {
+            AIProvider provider = AIProviderFactory.create(providerName, apiKey);
+            if (!provider.supportsVision()) {
+                Toast.makeText(this, R.string.quick_diagnosis_provider_required, Toast.LENGTH_LONG).show();
+                return;
+            }
+
+            // Launch Quick Diagnosis
+            startActivity(new Intent(this, QuickDiagnosisActivity.class));
+        } catch (Exception e) {
+            Toast.makeText(this, R.string.quick_diagnosis_provider_required, Toast.LENGTH_LONG).show();
+        }
     }
 }

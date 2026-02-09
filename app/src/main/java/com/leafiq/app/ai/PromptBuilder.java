@@ -96,6 +96,47 @@ public class PromptBuilder {
         return sb.toString();
     }
 
+    public static String buildQuickDiagnosisPrompt() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("You are an expert botanist. ");
+        sb.append("Quickly assess this plant's health from the photo. ");
+        sb.append("DO NOT identify the plant species — focus ONLY on health assessment.\n\n");
+
+        sb.append("Respond ONLY with valid JSON in this exact format ");
+        sb.append("(no markdown, no backticks, no explanatory text before or after):\n");
+        sb.append(getQuickDiagnosisJsonTemplate());
+
+        sb.append("\n\nBe specific about visible symptoms. ");
+        sb.append("If the plant looks healthy, say so. ");
+        sb.append("If you can see the pot, soil, or surroundings, factor those in.");
+
+        return sb.toString();
+    }
+
+    private static String getQuickDiagnosisJsonTemplate() {
+        return "{\n"
+            + "  \"healthAssessment\": {\n"
+            + "    \"score\": 1-10,\n"
+            + "    \"label\": \"Healthy | Needs Attention | Critical\",\n"
+            + "    \"summary\": \"1-2 sentence health overview\"\n"
+            + "  },\n"
+            + "  \"issues\": [\n"
+            + "    {\n"
+            + "      \"name\": \"string\",\n"
+            + "      \"severity\": \"low | medium | high\",\n"
+            + "      \"description\": \"string\"\n"
+            + "    }\n"
+            + "  ],\n"
+            + "  \"immediateActions\": [\n"
+            + "    {\n"
+            + "      \"action\": \"string\",\n"
+            + "      \"priority\": \"urgent | soon | when_convenient\",\n"
+            + "      \"detail\": \"string\"\n"
+            + "    }\n"
+            + "  ]\n"
+            + "}";
+    }
+
     private static String formatTimestamp(long timestamp) {
         if (timestamp <= 0) return "Unknown date";
         SimpleDateFormat sdf = new SimpleDateFormat("MMM d, yyyy", Locale.US);

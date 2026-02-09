@@ -70,4 +70,11 @@
     <string name="health_label_needs_attention">Needs Attention</string>
     <string name="health_label_critical">Critical</string>
     <string name="view_full_analysis">View full analysis</string>
+
+    <!-- Quick Diagnosis -->
+    <string name="quick_diagnosis_title">Quick Diagnosis</string>
+    <string name="quick_diagnosis_provider_required">Quick Diagnosis requires a vision-capable provider (Claude, Gemini, or ChatGPT). Update in Settings.</string>
+    <string name="quick_diagnosis_analyzing">Analyzing plant health…</string>
+    <string name="quick_diagnosis_full_analysis">Want a full analysis?</string>
+    <string name="dismiss">Dismiss</string>
 </resources>
