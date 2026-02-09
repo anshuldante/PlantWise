@@ -7,10 +7,13 @@ import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 
+import com.leafiq.app.LeafIQApplication;
 import com.leafiq.app.ai.AIProvider;
 import com.leafiq.app.ai.AIProviderFactory;
+import com.leafiq.app.care.CareScheduleManager;
 import com.leafiq.app.data.entity.Analysis;
 import com.leafiq.app.data.entity.CareItem;
+import com.leafiq.app.data.entity.CareSchedule;
 import com.leafiq.app.data.entity.Plant;
 import com.leafiq.app.data.model.PlantAnalysisResult;
 import com.leafiq.app.data.repository.PlantRepository;
@@ -38,10 +41,12 @@ import java.util.UUID;
 public class AnalysisViewModel extends AndroidViewModel {
 
     private final MutableLiveData<AnalysisUiState> uiState;
+    private final MutableLiveData<List<CareSchedule>> scheduleUpdatePrompts;
     private final AnalyzePlantUseCase analyzePlantUseCase;
     private final PlantRepository plantRepository;
     private final ImagePreprocessor imagePreprocessor;
     private final KeystoreHelper keystoreHelper;
+    private final CareScheduleManager careScheduleManager;
 
     /**
      * Callback interface for save operations.
@@ -59,13 +64,16 @@ public class AnalysisViewModel extends AndroidViewModel {
                             AnalyzePlantUseCase analyzePlantUseCase,
                             PlantRepository plantRepository,
                             ImagePreprocessor imagePreprocessor,
-                            KeystoreHelper keystoreHelper) {
+                            KeystoreHelper keystoreHelper,
+                            CareScheduleManager careScheduleManager) {
         super(application);
         this.analyzePlantUseCase = analyzePlantUseCase;
         this.plantRepository = plantRepository;
         this.imagePreprocessor = imagePreprocessor;
         this.keystoreHelper = keystoreHelper;
+        this.careScheduleManager = careScheduleManager;
         this.uiState = new MutableLiveData<>(AnalysisUiState.idle());
+        this.scheduleUpdatePrompts = new MutableLiveData<>();
     }
 
     /**
@@ -74,6 +82,14 @@ public class AnalysisViewModel extends AndroidViewModel {
      */
     public LiveData<AnalysisUiState> getUiState() {
         return uiState;
+    }
+
+    /**
+     * Gets the schedule update prompts LiveData for observation.
+     * Activity observes this to show re-analysis schedule conflict dialogs.
+     */
+    public LiveData<List<CareSchedule>> getScheduleUpdatePrompts() {
+        return scheduleUpdatePrompts;
     }
 
     /**
@@ -278,6 +294,7 @@ public class AnalysisViewModel extends AndroidViewModel {
 
             // Branch on new vs existing plant
             final String finalPlantId = plantId;
+            final List<CareItem> finalCareItems = careItems;
             if (isNewPlant) {
                 // NEW PLANT: Create Plant entity and save all
                 Plant plant = new Plant();
@@ -293,6 +310,18 @@ public class AnalysisViewModel extends AndroidViewModel {
                         new PlantRepository.RepositoryCallback<Void>() {
                             @Override
                             public void onSuccess(Void unused) {
+                                // After successful save, create care schedules on background thread
+                                LeafIQApplication app = (LeafIQApplication) getApplication();
+                                app.getAppExecutors().io().execute(() -> {
+                                    List<CareSchedule> needsPrompt = careScheduleManager.createSchedulesFromCareItems(
+                                            finalPlantId, finalCareItems);
+
+                                    // If any user-customized schedules conflict with new AI data, signal UI
+                                    if (!needsPrompt.isEmpty()) {
+                                        scheduleUpdatePrompts.postValue(needsPrompt);
+                                    }
+                                });
+
                                 callback.onSuccess(finalPlantId);
                             }
 
@@ -308,6 +337,18 @@ public class AnalysisViewModel extends AndroidViewModel {
                         new PlantRepository.RepositoryCallback<Void>() {
                             @Override
                             public void onSuccess(Void unused) {
+                                // After successful re-analysis, update care schedules on background thread
+                                LeafIQApplication app = (LeafIQApplication) getApplication();
+                                app.getAppExecutors().io().execute(() -> {
+                                    List<CareSchedule> needsPrompt = careScheduleManager.createSchedulesFromCareItems(
+                                            finalPlantId, finalCareItems);
+
+                                    // If any user-customized schedules conflict with new AI data, signal UI
+                                    if (!needsPrompt.isEmpty()) {
+                                        scheduleUpdatePrompts.postValue(needsPrompt);
+                                    }
+                                });
+
                                 callback.onSuccess(finalPlantId);
                             }
 
@@ -419,5 +460,42 @@ public class AnalysisViewModel extends AndroidViewModel {
         if (lower.contains("yearly") || lower.contains("annual")) return 365;
 
         return 7; // Default to weekly
+    }
+
+    /**
+     * Updates a care schedule with AI-recommended frequency.
+     * Called when user accepts schedule update prompt during re-analysis.
+     *
+     * @param schedule Schedule to update (contains AI-recommended frequency in notes)
+     */
+    public void acceptScheduleUpdate(CareSchedule schedule) {
+        LeafIQApplication app = (LeafIQApplication) getApplication();
+        app.getAppExecutors().io().execute(() -> {
+            // Extract AI-recommended frequency from notes
+            if (schedule.notes != null && schedule.notes.startsWith("AI_RECOMMENDED:")) {
+                String[] parts = schedule.notes.split("\\|", 2);
+                String freqPart = parts[0].substring("AI_RECOMMENDED:".length());
+                int aiFrequency = Integer.parseInt(freqPart);
+                String originalNotes = parts.length > 1 ? parts[1] : "";
+
+                // Update schedule: set to AI frequency, mark as not custom, restore notes
+                schedule.frequencyDays = aiFrequency;
+                schedule.isCustom = false;
+                schedule.notes = originalNotes;
+
+                // Use repository to update
+                plantRepository.updateSchedule(schedule, new PlantRepository.RepositoryCallback<Void>() {
+                    @Override
+                    public void onSuccess(Void result) {
+                        // Updated successfully
+                    }
+
+                    @Override
+                    public void onError(Exception e) {
+                        // Log error silently
+                    }
+                });
+            }
+        });
     }
 }

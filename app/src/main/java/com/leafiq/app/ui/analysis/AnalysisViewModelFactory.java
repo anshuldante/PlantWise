@@ -62,13 +62,17 @@ public class AnalysisViewModelFactory implements ViewModelProvider.Factory {
             // Create KeystoreHelper for API key management
             KeystoreHelper keystoreHelper = new KeystoreHelper(application);
 
+            // Get CareScheduleManager from Application
+            com.leafiq.app.care.CareScheduleManager careScheduleManager = app.getCareScheduleManager();
+
             // Create ViewModel with all dependencies
             return (T) new AnalysisViewModel(
                     application,
                     analyzePlantUseCase,
                     plantRepository,
                     imagePreprocessor,
-                    keystoreHelper
+                    keystoreHelper,
+                    careScheduleManager
             );
         }
         throw new IllegalArgumentException("Unknown ViewModel class: " + modelClass.getName());

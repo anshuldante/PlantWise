@@ -102,6 +102,10 @@ public class CareScheduleManager {
                 } else {
                     // User-customized schedule: DO NOT update, flag for prompt
                     if (existingSchedule.frequencyDays != item.frequencyDays) {
+                        // Store AI-recommended frequency in notes temporarily for UI prompt
+                        // Format: "AI_RECOMMENDED:X|original_notes"
+                        existingSchedule.notes = "AI_RECOMMENDED:" + item.frequencyDays + "|" +
+                                (item.notes != null ? item.notes : "");
                         needsPrompt.add(existingSchedule);
                     }
                 }
