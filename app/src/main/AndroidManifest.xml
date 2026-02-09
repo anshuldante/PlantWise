@@ -16,6 +16,9 @@
     <!-- Exact alarms for care reminder scheduling (Phase 7 - infrastructure only) -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
+    <!-- Boot receiver for rescheduling alarms after device restart -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
     <application
         android:name=".LeafIQApplication"
         android:allowBackup="true"
@@ -62,6 +65,23 @@
             android:name=".ui.diagnosis.QuickDiagnosisActivity"
             android:exported="false"
             android:theme="@style/Theme.LeafIQ" />
+
+        <!-- BroadcastReceiver for care reminder alarms and notification actions -->
+        <receiver android:name=".care.CareReminderReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.leafiq.app.ACTION_CARE_DONE"/>
+                <action android:name="com.leafiq.app.ACTION_CARE_SNOOZE"/>
+            </intent-filter>
+        </receiver>
+
+        <!-- BroadcastReceiver for rescheduling alarms after device reboot -->
+        <receiver android:name=".care.BootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+            </intent-filter>
+        </receiver>
 
     </application>
 
