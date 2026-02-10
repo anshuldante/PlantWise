@@ -22,16 +22,18 @@ public class AnalysisViewModelTest {
 
     // ==================== parseFrequencyDays tests ====================
 
+    // Null/empty input -> 14 (ultimate fallback changed from 7)
     @Test
-    public void parseFrequencyDays_null_returnsDefault7() throws Exception {
-        assertThat(invokeParseFrequencyDays(null)).isEqualTo(7);
+    public void parseFrequencyDays_null_returnsDefault14() throws Exception {
+        assertThat(invokeParseFrequencyDays(null)).isEqualTo(14);
     }
 
     @Test
-    public void parseFrequencyDays_emptyString_returnsDefault7() throws Exception {
-        assertThat(invokeParseFrequencyDays("")).isEqualTo(7);
+    public void parseFrequencyDays_emptyString_returnsDefault14() throws Exception {
+        assertThat(invokeParseFrequencyDays("")).isEqualTo(14);
     }
 
+    // Keyword fallbacks (longest first to fix biweekly bug)
     @Test
     public void parseFrequencyDays_daily_returns1() throws Exception {
         assertThat(invokeParseFrequencyDays("daily")).isEqualTo(1);
@@ -43,16 +45,19 @@ public class AnalysisViewModelTest {
     }
 
     @Test
-    public void parseFrequencyDays_biweekly_returns7_dueToWeeklyMatchFirst() throws Exception {
-        // Note: "biweekly" contains "weekly", so it matches the weekly check first.
-        // This is a known ordering issue in parseFrequencyDays keyword fallbacks.
-        assertThat(invokeParseFrequencyDays("biweekly")).isEqualTo(7);
+    public void parseFrequencyDays_biweekly_returns14_BUG15_FIXED() throws Exception {
+        // BUG-15 FIX: biweekly must be checked BEFORE weekly to avoid substring collision
+        assertThat(invokeParseFrequencyDays("biweekly")).isEqualTo(14);
     }
 
     @Test
-    public void parseFrequencyDays_biWeeklyHyphen_returns7_dueToWeeklyMatchFirst() throws Exception {
-        // Note: "bi-weekly" contains "weekly", so it matches the weekly check first.
-        assertThat(invokeParseFrequencyDays("bi-weekly")).isEqualTo(7);
+    public void parseFrequencyDays_biWeeklyHyphen_returns14() throws Exception {
+        assertThat(invokeParseFrequencyDays("bi-weekly")).isEqualTo(14);
+    }
+
+    @Test
+    public void parseFrequencyDays_fortnightly_returns14() throws Exception {
+        assertThat(invokeParseFrequencyDays("fortnightly")).isEqualTo(14);
     }
 
     @Test
@@ -61,23 +66,30 @@ public class AnalysisViewModelTest {
     }
 
     @Test
-    public void parseFrequencyDays_yearly_returns365() throws Exception {
-        assertThat(invokeParseFrequencyDays("yearly")).isEqualTo(365);
+    public void parseFrequencyDays_bimonthly_returns60() throws Exception {
+        assertThat(invokeParseFrequencyDays("bimonthly")).isEqualTo(60);
     }
 
     @Test
-    public void parseFrequencyDays_annual_returns365() throws Exception {
-        assertThat(invokeParseFrequencyDays("annual")).isEqualTo(365);
+    public void parseFrequencyDays_biMonthlyHyphen_returns60() throws Exception {
+        assertThat(invokeParseFrequencyDays("bi-monthly")).isEqualTo(60);
     }
 
     @Test
-    public void parseFrequencyDays_2weeks_returns14() throws Exception {
-        assertThat(invokeParseFrequencyDays("2 weeks")).isEqualTo(14);
+    public void parseFrequencyDays_yearly_returns90_capped() throws Exception {
+        // Yearly capped at 90 days per user decision
+        assertThat(invokeParseFrequencyDays("yearly")).isEqualTo(90);
     }
 
     @Test
-    public void parseFrequencyDays_3weeks_returns21() throws Exception {
-        assertThat(invokeParseFrequencyDays("3 weeks")).isEqualTo(21);
+    public void parseFrequencyDays_annually_returns90_capped() throws Exception {
+        assertThat(invokeParseFrequencyDays("annually")).isEqualTo(90);
+    }
+
+    // Numeric extraction with units
+    @Test
+    public void parseFrequencyDays_every10days_returns10() throws Exception {
+        assertThat(invokeParseFrequencyDays("every 10 days")).isEqualTo(10);
     }
 
     @Test
@@ -86,54 +98,101 @@ public class AnalysisViewModelTest {
     }
 
     @Test
-    public void parseFrequencyDays_2months_returns60() throws Exception {
-        assertThat(invokeParseFrequencyDays("2 months")).isEqualTo(60);
+    public void parseFrequencyDays_every3months_returns90_capped() throws Exception {
+        // 3 months = 90 days, which is already at the cap
+        assertThat(invokeParseFrequencyDays("every 3 months")).isEqualTo(90);
     }
 
     @Test
-    public void parseFrequencyDays_3days_returns3() throws Exception {
-        assertThat(invokeParseFrequencyDays("3 days")).isEqualTo(3);
+    public void parseFrequencyDays_every5months_returns90_capped() throws Exception {
+        // 5 months = 150 days, but capped at 90
+        assertThat(invokeParseFrequencyDays("every 5 months")).isEqualTo(90);
+    }
+
+    // Range numeric extraction (higher bound)
+    @Test
+    public void parseFrequencyDays_every23weeks_returns21_higherBound() throws Exception {
+        // "every 2-3 weeks" -> 3 * 7 = 21 (higher bound)
+        assertThat(invokeParseFrequencyDays("every 2-3 weeks")).isEqualTo(21);
     }
 
     @Test
-    public void parseFrequencyDays_every7days_returns7() throws Exception {
-        assertThat(invokeParseFrequencyDays("every 7 days")).isEqualTo(7);
+    public void parseFrequencyDays_every710days_returns10_higherBound() throws Exception {
+        // "every 7-10 days" -> 10 (higher bound)
+        assertThat(invokeParseFrequencyDays("every 7-10 days")).isEqualTo(10);
+    }
+
+    // Special phrases
+    @Test
+    public void parseFrequencyDays_twiceAWeek_returns4() throws Exception {
+        // Twice a week = every 3.5 days, round to 4
+        assertThat(invokeParseFrequencyDays("twice a week")).isEqualTo(4);
     }
 
     @Test
-    public void parseFrequencyDays_every710days_extracts710AsDays() throws Exception {
-        // "every 7-10 days" extracts "710" as the number
-        int result = invokeParseFrequencyDays("every 7-10 days");
-        // The regex strips non-digits, getting "710", then "days" keyword -> 710
-        assertThat(result).isEqualTo(710);
+    public void parseFrequencyDays_twiceAMonth_returns15() throws Exception {
+        // Twice a month = every 15 days
+        assertThat(invokeParseFrequencyDays("twice a month")).isEqualTo(15);
+    }
+
+    // Condition-based detection
+    @Test
+    public void parseFrequencyDays_asNeeded_returns14_conditionBased() throws Exception {
+        assertThat(invokeParseFrequencyDays("as needed")).isEqualTo(14);
     }
 
     @Test
-    public void parseFrequencyDays_bareNumber_assumesDays() throws Exception {
-        assertThat(invokeParseFrequencyDays("5")).isEqualTo(5);
+    public void parseFrequencyDays_whenSoilIsDry_returns14_conditionBased() throws Exception {
+        assertThat(invokeParseFrequencyDays("when soil is dry")).isEqualTo(14);
     }
 
     @Test
-    public void parseFrequencyDays_bareNumber0_returnsAtLeast1() throws Exception {
+    public void parseFrequencyDays_waterWhenTopInchDry_returns14_conditionBased() throws Exception {
+        assertThat(invokeParseFrequencyDays("Water when top inch of soil is dry")).isEqualTo(14);
+    }
+
+    // Seasonal qualifier (first frequency found)
+    @Test
+    public void parseFrequencyDays_monthlyInSummerWeeklyInWinter_returns30_firstFrequency() throws Exception {
+        // Keyword scan hits "monthly" first -> 30
+        assertThat(invokeParseFrequencyDays("monthly in summer, weekly in winter")).isEqualTo(30);
+    }
+
+    // Bounds enforcement
+    @Test
+    public void parseFrequencyDays_every1day_returns1_minFloor() throws Exception {
+        assertThat(invokeParseFrequencyDays("every 1 day")).isEqualTo(1);
+    }
+
+    @Test
+    public void parseFrequencyDays_every200days_returns90_maxCap() throws Exception {
+        // 200 days capped at 90
+        assertThat(invokeParseFrequencyDays("every 200 days")).isEqualTo(90);
+    }
+
+    @Test
+    public void parseFrequencyDays_bareNumber14_assumesDays() throws Exception {
+        assertThat(invokeParseFrequencyDays("14")).isEqualTo(14);
+    }
+
+    @Test
+    public void parseFrequencyDays_bareNumber0_returns1_minFloor() throws Exception {
         // Math.max(1, 0) ensures at least 1 day
         assertThat(invokeParseFrequencyDays("0")).isEqualTo(1);
     }
 
+    // Case insensitivity
     @Test
     public void parseFrequencyDays_caseInsensitive() throws Exception {
         assertThat(invokeParseFrequencyDays("DAILY")).isEqualTo(1);
-        assertThat(invokeParseFrequencyDays("Weekly")).isEqualTo(7);
+        assertThat(invokeParseFrequencyDays("BiWeekly")).isEqualTo(14);
         assertThat(invokeParseFrequencyDays("MONTHLY")).isEqualTo(30);
     }
 
+    // Gibberish fallback
     @Test
-    public void parseFrequencyDays_unknownString_returnsDefault7() throws Exception {
-        assertThat(invokeParseFrequencyDays("whenever needed")).isEqualTo(7);
-    }
-
-    @Test
-    public void parseFrequencyDays_onceAWeek_returns7() throws Exception {
-        assertThat(invokeParseFrequencyDays("once a week")).isEqualTo(7);
+    public void parseFrequencyDays_gibberish_returnsDefault14() throws Exception {
+        assertThat(invokeParseFrequencyDays("gibberish text")).isEqualTo(14);
     }
 
     // ==================== buildCareItems tests ====================
