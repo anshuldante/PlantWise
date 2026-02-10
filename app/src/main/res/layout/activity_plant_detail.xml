@@ -56,10 +56,64 @@
             android:orientation="vertical"
             android:padding="16dp">
 
+            <!-- Plant Metadata (Nickname & Location) -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="2dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/nickname_input_layout"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="Nickname (optional)"
+                        app:endIconMode="clear_text">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/nickname_input"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:hint="My name for this plant"
+                            android:inputType="textCapWords"
+                            android:maxLines="1"
+                            android:singleLine="true"
+                            android:imeOptions="actionDone" />
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/location_input_layout"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:hint="Location"
+                        app:endIconMode="clear_text">
+
+                        <AutoCompleteTextView
+                            android:id="@+id/location_input"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:hint="e.g., Living Room, Balcony"
+                            android:inputType="textCapWords"
+                            android:maxLines="1"
+                            android:singleLine="true"
+                            android:imeOptions="actionDone" />
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
             <!-- Health Score -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
                 app:cardCornerRadius="12dp"
                 app:cardElevation="2dp">
 
@@ -109,6 +163,28 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
+            <!-- Health Score Sparkline -->
+            <com.leafiq.app.ui.timeline.SparklineView
+                android:id="@+id/health_sparkline"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="12dp"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                android:visibility="gone" />
+
+            <!-- Sparkline Hint (shown when only 1 analysis) -->
+            <TextView
+                android:id="@+id/sparkline_hint"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:layout_gravity="center_horizontal"
+                android:text="Analyze again to track health trends"
+                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:textColor="@color/text_secondary"
+                android:visibility="gone" />
+
             <!-- Latest Summary -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/summary_card"
@@ -152,6 +228,122 @@
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
+
+            <!-- Care Reminders -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/care_reminders_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:visibility="gone"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="2dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <!-- Header row with title and toggle -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/care_reminders"
+                            android:textAppearance="?attr/textAppearanceTitleMedium"
+                            android:textColor="@color/md_theme_primary" />
+
+                        <com.google.android.material.switchmaterial.SwitchMaterial
+                            android:id="@+id/switch_reminders"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:checked="true" />
+                    </LinearLayout>
+
+                    <!-- Schedules container -->
+                    <LinearLayout
+                        android:id="@+id/schedules_container"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:orientation="vertical" />
+
+                    <!-- Snooze suggestion hint -->
+                    <TextView
+                        android:id="@+id/snooze_suggestion"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/adjust_schedule_suggestion"
+                        android:textAppearance="?attr/textAppearanceBodySmall"
+                        android:textColor="@color/health_warning"
+                        android:visibility="gone" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Care History -->
+            <LinearLayout
+                android:id="@+id/care_history_section"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/recent_care"
+                    android:textAppearance="?attr/textAppearanceTitleSmall"
+                    android:textColor="@color/md_theme_primary" />
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/care_history_recycler"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:nestedScrollingEnabled="false" />
+
+                <TextView
+                    android:id="@+id/care_history_empty"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/no_care_completions"
+                    android:textAppearance="?attr/textAppearanceBodyMedium"
+                    android:textColor="@color/text_secondary"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <!-- Correct This Button -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_correct_analysis"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Correct this"
+                android:visibility="gone" />
+
+            <!-- Delete Button -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_delete"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Delete Plant"
+                android:textColor="@color/health_bad"
+                app:icon="@android:drawable/ic_menu_delete"
+                app:iconTint="@color/health_bad"
+                app:strokeColor="@color/health_bad" />
 
             <!-- Analysis History Label -->
             <TextView

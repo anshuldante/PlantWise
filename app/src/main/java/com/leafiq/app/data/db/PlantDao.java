@@ -31,4 +31,7 @@ public interface PlantDao {
 
     @Delete
     void deletePlant(Plant plant);
+
+    @Query("SELECT DISTINCT location FROM plants WHERE location IS NOT NULL AND location != '' ORDER BY location")
+    List<String> getDistinctLocations();
 }

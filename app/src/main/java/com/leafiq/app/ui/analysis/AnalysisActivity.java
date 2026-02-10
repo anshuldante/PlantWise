@@ -1,52 +1,68 @@
 package com.leafiq.app.ui.analysis;
 
+import android.Manifest;
 import android.content.DialogInterface;
+import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.text.InputType;
+import android.view.Gravity;
 import android.view.View;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.lifecycle.ViewModelProvider;
 
 import com.leafiq.app.R;
-import com.leafiq.app.ai.AIProvider;
-import com.leafiq.app.ai.AIProviderException;
-import com.leafiq.app.ai.ClaudeProvider;
-import com.leafiq.app.ai.GeminiProvider;
-import com.leafiq.app.ai.OpenAIProvider;
-import com.leafiq.app.ai.PerplexityProvider;
-import com.leafiq.app.ai.PromptBuilder;
-import com.leafiq.app.data.db.AppDatabase;
-import com.leafiq.app.data.entity.Analysis;
-import com.leafiq.app.data.entity.CareItem;
-import com.leafiq.app.data.entity.Plant;
+import com.leafiq.app.data.entity.CareSchedule;
 import com.leafiq.app.data.model.PlantAnalysisResult;
-import com.leafiq.app.util.ImageUtils;
 import com.leafiq.app.util.KeystoreHelper;
+import com.leafiq.app.util.PhotoQualityChecker;
 import com.bumptech.glide.Glide;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.card.MaterialCardView;
+import com.google.android.material.snackbar.Snackbar;
 
-import java.io.IOException;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+/**
+ * UI-only Activity for plant analysis screen.
+ * Observes ViewModel state via LiveData and renders UI accordingly.
+ * <p>
+ * All business logic delegated to AnalysisViewModel:
+ * - Analysis: viewModel.analyzeImage()
+ * - Saving: viewModel.savePlant()
+ * <p>
+ * Activity responsibilities:
+ * - View initialization and rendering
+ * - Image preview loading
+ * - User interaction handling
+ * - API key prompting
+ * - Temporary file management
+ */
 public class AnalysisActivity extends AppCompatActivity {
 
     public static final String EXTRA_IMAGE_URI = "extra_image_uri";
     public static final String EXTRA_PLANT_ID = "extra_plant_id";
+    private static final int REQUEST_NOTIFICATION_PERMISSION = 1001;
 
     private ImageView imagePreview;
+    private View photoTipsContainer;
     private View loadingContainer;
     private View resultsContainer;
     private View errorContainer;
@@ -65,27 +81,43 @@ public class AnalysisActivity extends AppCompatActivity {
     private MaterialCardView funFactCard;
     private TextView funFactText;
     private MaterialButton saveButton;
+    private MaterialButton correctButton;
     private MaterialButton retryButton;
 
     private Uri imageUri;
     private Uri localImageUri; // Persistent local copy
     private String plantId;
     private PlantAnalysisResult analysisResult;
-    private String rawResponse;
 
     private KeystoreHelper keystoreHelper;
-    private ExecutorService executor;
+    private AnalysisViewModel viewModel;
+    private ExecutorService executor; // For image copy only
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_analysis);
 
+        // Initialize KeystoreHelper for API key checks
         keystoreHelper = new KeystoreHelper(this);
+
+        // Initialize ViewModel
+        viewModel = new ViewModelProvider(this,
+                new AnalysisViewModelFactory(getApplication()))
+                .get(AnalysisViewModel.class);
+
+        // Initialize executor for image copy (UI-layer file I/O)
         executor = Executors.newSingleThreadExecutor();
 
         initViews();
 
+        // Observe UI state from ViewModel
+        viewModel.getUiState().observe(this, this::onUiStateChanged);
+
+        // Observe schedule update prompts for re-analysis conflicts
+        viewModel.getScheduleUpdatePrompts().observe(this, this::onScheduleUpdatePrompts);
+
+        // Load image URI from intent
         String uriString = getIntent().getStringExtra(EXTRA_IMAGE_URI);
         if (uriString != null) {
             imageUri = Uri.parse(uriString);
@@ -96,13 +128,72 @@ public class AnalysisActivity extends AppCompatActivity {
 
         plantId = getIntent().getStringExtra(EXTRA_PLANT_ID);
 
-        saveButton.setOnClickListener(v -> savePlant());
-        retryButton.setOnClickListener(v -> startAnalysis());
+        // Set up button click listeners
+        saveButton.setOnClickListener(v -> handleSaveClick());
+        correctButton.setOnClickListener(v -> showCorrectionDialog());
+        retryButton.setOnClickListener(v -> handleRetryClick());
 
         // Analysis will be triggered after copyImageToLocal() completes
-        // Don't start analysis here - avoid race condition
     }
 
+    private void initViews() {
+        imagePreview = findViewById(R.id.image_preview);
+        photoTipsContainer = findViewById(R.id.photo_tips_container);
+        loadingContainer = findViewById(R.id.loading_container);
+        resultsContainer = findViewById(R.id.results_container);
+        errorContainer = findViewById(R.id.error_container);
+        errorMessage = findViewById(R.id.error_message);
+
+        plantCommonName = findViewById(R.id.plant_common_name);
+        plantScientificName = findViewById(R.id.plant_scientific_name);
+        identificationNotes = findViewById(R.id.identification_notes);
+        healthScore = findViewById(R.id.health_score);
+        healthSummary = findViewById(R.id.health_summary);
+        healthIssuesLabel = findViewById(R.id.health_issues_label);
+        issuesContainer = findViewById(R.id.issues_container);
+        actionsCard = findViewById(R.id.actions_card);
+        actionsContainer = findViewById(R.id.actions_container);
+        carePlanContainer = findViewById(R.id.care_plan_container);
+        funFactCard = findViewById(R.id.fun_fact_card);
+        funFactText = findViewById(R.id.fun_fact_text);
+        saveButton = findViewById(R.id.btn_save);
+        correctButton = findViewById(R.id.btn_correct);
+        retryButton = findViewById(R.id.btn_retry);
+    }
+
+    /**
+     * Handles UI state changes from ViewModel.
+     * Called whenever ViewModel's LiveData<AnalysisUiState> emits a new state.
+     */
+    private void onUiStateChanged(AnalysisUiState state) {
+        switch (state.getState()) {
+            case IDLE:
+                // Initial state, nothing to show
+                break;
+            case LOADING:
+                showLoading();
+                break;
+            case SUCCESS:
+                photoTipsContainer.setVisibility(View.GONE);
+                analysisResult = state.getResult();
+                displayResults();
+                showQuickDiagnosisTooltipIfNeeded();
+                break;
+            case ERROR:
+                photoTipsContainer.setVisibility(View.GONE);
+                if (state.isVisionUnsupported()) {
+                    showVisionNotSupportedDialog(state.getVisionUnsupportedProvider());
+                } else {
+                    showError(state.getErrorMessage());
+                }
+                break;
+        }
+    }
+
+    /**
+     * Copies image to local storage to preserve access after camera intent completes.
+     * UI-layer concern (file I/O for temporary image).
+     */
     private void copyImageToLocal() {
         executor.execute(() -> {
             try {
@@ -130,14 +221,8 @@ public class AnalysisActivity extends AppCompatActivity {
                 localImageUri = Uri.fromFile(localFile);
                 android.util.Log.d("AnalysisActivity", "Image copied to: " + localImageUri);
 
-                // After copy completes, check API key and start analysis
-                runOnUiThread(() -> {
-                    if (!keystoreHelper.hasApiKey()) {
-                        promptForApiKey();
-                    } else {
-                        startAnalysis();
-                    }
-                });
+                // After copy completes, validate photo quality
+                runOnUiThread(() -> validatePhotoQuality());
 
             } catch (Exception e) {
                 android.util.Log.e("AnalysisActivity", "Failed to copy image locally: " + e.getMessage());
@@ -146,29 +231,17 @@ public class AnalysisActivity extends AppCompatActivity {
         });
     }
 
-    private void initViews() {
-        imagePreview = findViewById(R.id.image_preview);
-        loadingContainer = findViewById(R.id.loading_container);
-        resultsContainer = findViewById(R.id.results_container);
-        errorContainer = findViewById(R.id.error_container);
-        errorMessage = findViewById(R.id.error_message);
-
-        plantCommonName = findViewById(R.id.plant_common_name);
-        plantScientificName = findViewById(R.id.plant_scientific_name);
-        identificationNotes = findViewById(R.id.identification_notes);
-        healthScore = findViewById(R.id.health_score);
-        healthSummary = findViewById(R.id.health_summary);
-        healthIssuesLabel = findViewById(R.id.health_issues_label);
-        issuesContainer = findViewById(R.id.issues_container);
-        actionsCard = findViewById(R.id.actions_card);
-        actionsContainer = findViewById(R.id.actions_container);
-        carePlanContainer = findViewById(R.id.care_plan_container);
-        funFactCard = findViewById(R.id.fun_fact_card);
-        funFactText = findViewById(R.id.fun_fact_text);
-        saveButton = findViewById(R.id.btn_save);
-        retryButton = findViewById(R.id.btn_retry);
+    /**
+     * Starts analysis by delegating to ViewModel.
+     */
+    private void startAnalysis() {
+        Uri uriToUse = localImageUri != null ? localImageUri : imageUri;
+        viewModel.analyzeImage(uriToUse, plantId);
     }
 
+    /**
+     * Shows dialog prompting user for API key.
+     */
     private void promptForApiKey() {
         String providerName = getProviderDisplayName();
 
@@ -195,6 +268,9 @@ public class AnalysisActivity extends AppCompatActivity {
             .show();
     }
 
+    /**
+     * Gets display name for current provider.
+     */
     private String getProviderDisplayName() {
         String provider = keystoreHelper.getProvider();
         if (KeystoreHelper.PROVIDER_GEMINI.equals(provider)) {
@@ -208,84 +284,82 @@ public class AnalysisActivity extends AppCompatActivity {
         }
     }
 
-    private AIProvider createProvider() {
-        String provider = keystoreHelper.getProvider();
-        String apiKey = keystoreHelper.getApiKey();
-
-        if (KeystoreHelper.PROVIDER_GEMINI.equals(provider)) {
-            return new GeminiProvider(apiKey);
-        } else if (KeystoreHelper.PROVIDER_CLAUDE.equals(provider)) {
-            return new ClaudeProvider(apiKey);
-        } else if (KeystoreHelper.PROVIDER_PERPLEXITY.equals(provider)) {
-            return new PerplexityProvider(apiKey);
-        } else {
-            return new OpenAIProvider(apiKey);
-        }
+    /**
+     * Shows dialog when provider doesn't support vision.
+     */
+    private void showVisionNotSupportedDialog(String providerName) {
+        new AlertDialog.Builder(this)
+            .setTitle("Image Analysis Not Supported")
+            .setMessage(providerName + " doesn't support image analysis. "
+                + "Please describe your plant or switch to another provider.")
+            .setPositiveButton("OK", (dialog, which) -> {
+                // Let user stay on screen - they can retry with different provider
+                showError(providerName + " is text-only. "
+                    + "Switch to Claude, ChatGPT, or Gemini in Settings for image analysis.");
+            })
+            .setNeutralButton("Open Settings", (dialog, which) -> {
+                // Navigate back so user can access settings
+                finish();
+            })
+            .setCancelable(false)
+            .show();
     }
 
-    private void startAnalysis() {
-        showLoading();
+    /**
+     * Handles save button click.
+     */
+    private void handleSaveClick() {
+        if (analysisResult == null) return;
 
-        executor.execute(() -> {
-            try {
-                // Use local copy if available, otherwise fall back to original URI
-                Uri uriToUse = localImageUri != null ? localImageUri : imageUri;
-                String base64Image = ImageUtils.prepareForApi(this, uriToUse);
+        Uri uriToSave = localImageUri != null ? localImageUri : imageUri;
+        if (uriToSave == null) {
+            Toast.makeText(this, "No image to save", Toast.LENGTH_SHORT).show();
+            return;
+        }
 
-                List<Analysis> previousAnalyses = null;
-                String knownPlantName = null;
+        saveButton.setEnabled(false);
+        saveButton.setText("Saving...");
 
-                if (plantId != null) {
-                    AppDatabase db = AppDatabase.getInstance(this);
-                    Plant existingPlant = db.plantDao().getPlantByIdSync(plantId);
-                    if (existingPlant != null) {
-                        knownPlantName = existingPlant.commonName;
-                        previousAnalyses = db.analysisDao().getRecentAnalysesSync(plantId);
-                    }
-                }
+        viewModel.savePlant(uriToSave, plantId, analysisResult, new AnalysisViewModel.SaveCallback() {
+            @Override
+            public void onSuccess(String savedPlantId) {
+                runOnUiThread(() -> {
+                    Toast.makeText(AnalysisActivity.this, "Plant saved to library!", Toast.LENGTH_SHORT).show();
 
-                String prompt = PromptBuilder.buildAnalysisPrompt(knownPlantName, previousAnalyses, null);
+                    // Request notification permission on first save (Android 13+)
+                    requestNotificationPermissionIfNeeded();
 
-                AIProvider provider = createProvider();
+                    finish();
+                });
+            }
 
-                // Check if provider supports vision (image analysis)
-                if (!provider.supportsVision()) {
-                    runOnUiThread(() -> {
-                        new AlertDialog.Builder(AnalysisActivity.this)
-                            .setTitle("Image Analysis Not Supported")
-                            .setMessage(provider.getDisplayName() + " doesn't support image analysis. "
-                                + "Please describe your plant or switch to another provider.")
-                            .setPositiveButton("OK", (dialog, which) -> {
-                                // Let user stay on screen - they can retry with different provider
-                                showError(provider.getDisplayName() + " is text-only. "
-                                    + "Switch to Claude, ChatGPT, or Gemini in Settings for image analysis.");
-                            })
-                            .setNeutralButton("Open Settings", (dialog, which) -> {
-                                // Navigate back so user can access settings
-                                finish();
-                            })
-                            .setCancelable(false)
-                            .show();
-                    });
-                    return; // Don't proceed with API call
-                }
-
-                analysisResult = provider.analyzePhoto(base64Image, prompt);
-
-                runOnUiThread(this::displayResults);
-
-            } catch (IOException e) {
-                runOnUiThread(() -> showError("Failed to process image: " + e.getMessage()));
-            } catch (AIProviderException e) {
-                runOnUiThread(() -> showError("Analysis failed: " + e.getMessage()));
+            @Override
+            public void onError(String message) {
+                runOnUiThread(() -> {
+                    saveButton.setEnabled(true);
+                    saveButton.setText(R.string.save_to_library);
+                    Toast.makeText(AnalysisActivity.this, "Failed to save: " + message, Toast.LENGTH_SHORT).show();
+                });
             }
         });
     }
 
+    /**
+     * Handles retry button click.
+     */
+    private void handleRetryClick() {
+        Uri uriToUse = localImageUri != null ? localImageUri : imageUri;
+        viewModel.analyzeImage(uriToUse, plantId);
+    }
+
+    /**
+     * Displays analysis results in UI.
+     */
     private void displayResults() {
         resultsContainer.setVisibility(View.VISIBLE);
         loadingContainer.setVisibility(View.GONE);
         errorContainer.setVisibility(View.GONE);
+        correctButton.setVisibility(View.VISIBLE);
 
         if (analysisResult.identification != null) {
             plantCommonName.setText(analysisResult.identification.commonName);
@@ -452,182 +526,341 @@ public class AnalysisActivity extends AppCompatActivity {
         errorMessage.setText(message);
     }
 
-    private void savePlant() {
-        if (analysisResult == null) return;
-
-        // Use local copy if available, otherwise try original URI
-        Uri uriToSave = localImageUri != null ? localImageUri : imageUri;
-        if (uriToSave == null) {
-            Toast.makeText(this, "No image to save", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        saveButton.setEnabled(false);
-        saveButton.setText("Saving...");
-
+    /**
+     * Validates photo quality before starting analysis.
+     * Checks brightness, blur, and resolution on background thread.
+     */
+    private void validatePhotoQuality() {
         executor.execute(() -> {
             try {
-                AppDatabase db = AppDatabase.getInstance(this);
-                long now = System.currentTimeMillis();
+                Uri uriToCheck = localImageUri != null ? localImageUri : imageUri;
+                PhotoQualityChecker.QualityResult result =
+                    PhotoQualityChecker.checkQuality(getContentResolver(), uriToCheck);
 
-                // Create or update plant
-                Plant plant;
-                boolean isNewPlant = (plantId == null);
-
-                if (isNewPlant) {
-                    plantId = UUID.randomUUID().toString();
-                    plant = new Plant();
-                    plant.id = plantId;
-                    plant.createdAt = now;
-                } else {
-                    plant = db.plantDao().getPlantByIdSync(plantId);
-                    if (plant == null) {
-                        plant = new Plant();
-                        plant.id = plantId;
-                        plant.createdAt = now;
+                runOnUiThread(() -> {
+                    if (result.passed) {
+                        proceedToAnalysis();
+                    } else {
+                        showQualityWarning(result.message);
                     }
-                }
-
-                plant.commonName = analysisResult.identification != null ?
-                    analysisResult.identification.commonName : "Unknown";
-                plant.scientificName = analysisResult.identification != null ?
-                    analysisResult.identification.scientificName : "";
-                plant.latestHealthScore = analysisResult.healthAssessment != null ?
-                    analysisResult.healthAssessment.score : 5;
-                plant.updatedAt = now;
-
-                // Save thumbnail and photo using local copy
-                String thumbnailPath = null;
-                String photoPath = null;
-                try {
-                    thumbnailPath = ImageUtils.saveThumbnail(this, uriToSave, plantId);
-                    photoPath = ImageUtils.savePhoto(this, uriToSave, plantId);
-                } catch (IOException e) {
-                    // If image save fails, continue without thumbnail
-                    android.util.Log.e("AnalysisActivity", "Failed to save image: " + e.getMessage());
-                }
-                plant.thumbnailPath = thumbnailPath;
-
-                db.plantDao().insertPlant(plant);
-
-                // Save analysis
-                Analysis analysis = new Analysis();
-                analysis.id = UUID.randomUUID().toString();
-                analysis.plantId = plantId;
-                analysis.photoPath = photoPath;
-                analysis.healthScore = plant.latestHealthScore;
-                analysis.summary = analysisResult.healthAssessment != null ?
-                    analysisResult.healthAssessment.summary : "";
-                analysis.rawResponse = analysisResult.rawResponse;
-                analysis.createdAt = now;
-
-                db.analysisDao().insertAnalysis(analysis);
-
-                // Persist care items from AI analysis
-                if (analysisResult.carePlan != null) {
-                    insertCareItems(db, plantId, analysisResult.carePlan, now);
-                }
-
-                runOnUiThread(() -> {
-                    Toast.makeText(this, "Plant saved to library!", Toast.LENGTH_SHORT).show();
-                    finish();
                 });
-
             } catch (Exception e) {
-                android.util.Log.e("AnalysisActivity", "Save failed", e);
-                runOnUiThread(() -> {
-                    saveButton.setEnabled(true);
-                    saveButton.setText(R.string.save_to_library);
-                    Toast.makeText(this, "Failed to save: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                });
+                // If quality check fails, proceed anyway (don't block on check failure)
+                runOnUiThread(() -> proceedToAnalysis());
             }
         });
     }
 
-    private void insertCareItems(AppDatabase db, String plantId,
-                                 PlantAnalysisResult.CarePlan carePlan, long now) {
-        // Delete existing care items for this plant to avoid duplicates on re-analysis
-        // (CareItemDao doesn't have a deleteByPlantId, so we skip this for now --
-        //  insertCareItem uses OnConflictStrategy.REPLACE, and new UUIDs mean new rows.
-        //  Old rows will CASCADE delete if the plant is deleted.)
-
-        if (carePlan.watering != null && carePlan.watering.frequency != null) {
-            CareItem item = new CareItem();
-            item.id = UUID.randomUUID().toString();
-            item.plantId = plantId;
-            item.type = "water";
-            item.frequencyDays = parseFrequencyDays(carePlan.watering.frequency);
-            item.lastDone = now;
-            item.nextDue = now + (item.frequencyDays * 86400000L);
-            item.notes = carePlan.watering.amount;
-            if (carePlan.watering.notes != null) {
-                item.notes = (item.notes != null ? item.notes + " - " : "") + carePlan.watering.notes;
-            }
-            db.careItemDao().insertCareItem(item);
-        }
-
-        if (carePlan.fertilizer != null && carePlan.fertilizer.frequency != null) {
-            CareItem item = new CareItem();
-            item.id = UUID.randomUUID().toString();
-            item.plantId = plantId;
-            item.type = "fertilize";
-            item.frequencyDays = parseFrequencyDays(carePlan.fertilizer.frequency);
-            item.lastDone = now;
-            item.nextDue = now + (item.frequencyDays * 86400000L);
-            item.notes = carePlan.fertilizer.type;
-            db.careItemDao().insertCareItem(item);
-        }
-
-        if (carePlan.pruning != null && carePlan.pruning.needed) {
-            CareItem item = new CareItem();
-            item.id = UUID.randomUUID().toString();
-            item.plantId = plantId;
-            item.type = "prune";
-            item.frequencyDays = 30; // Default monthly for pruning
-            item.lastDone = now;
-            item.nextDue = now + (item.frequencyDays * 86400000L);
-            item.notes = carePlan.pruning.instructions;
-            db.careItemDao().insertCareItem(item);
-        }
-
-        if (carePlan.repotting != null && carePlan.repotting.needed) {
-            CareItem item = new CareItem();
-            item.id = UUID.randomUUID().toString();
-            item.plantId = plantId;
-            item.type = "repot";
-            item.frequencyDays = 365; // Default yearly for repotting
-            item.lastDone = now;
-            item.nextDue = now + (item.frequencyDays * 86400000L);
-            item.notes = carePlan.repotting.signs;
-            db.careItemDao().insertCareItem(item);
+    /**
+     * Proceeds to analysis after quality check passes or is skipped.
+     * Checks API key first, then starts analysis.
+     */
+    private void proceedToAnalysis() {
+        if (!keystoreHelper.hasApiKey()) {
+            promptForApiKey();
+        } else {
+            startAnalysis();
         }
     }
 
-    private int parseFrequencyDays(String frequency) {
-        if (frequency == null) return 7;
-        String lower = frequency.toLowerCase();
+    /**
+     * Shows quality warning dialog with override option.
+     * @param message Specific quality issue message
+     */
+    private void showQualityWarning(String message) {
+        new AlertDialog.Builder(this)
+            .setTitle("Photo Quality Issue")
+            .setMessage(message)
+            .setPositiveButton("Use Anyway", (d, w) -> proceedToAnalysis())
+            .setNegativeButton("Choose Different Photo", (d, w) -> finish())
+            .setCancelable(false)
+            .show();
+    }
 
-        // Try to extract a number
-        try {
-            String numStr = lower.replaceAll("[^0-9]", "");
-            if (!numStr.isEmpty()) {
-                int num = Integer.parseInt(numStr);
-                if (lower.contains("week")) return num * 7;
-                if (lower.contains("month")) return num * 30;
-                if (lower.contains("day")) return num;
-                // Bare number, assume days
-                return Math.max(1, num);
+    /**
+     * Shows correction dialog for user to provide corrections to AI analysis.
+     * Allows re-analysis with corrections or saving field corrections without re-analysis.
+     */
+    private void showCorrectionDialog() {
+        if (analysisResult == null) return;
+
+        // Inflate dialog layout
+        View dialogView = getLayoutInflater().inflate(R.layout.dialog_correction, null);
+        com.google.android.material.textfield.TextInputEditText nameInput = dialogView.findViewById(R.id.correct_name_input);
+        com.google.android.material.textfield.TextInputEditText healthInput = dialogView.findViewById(R.id.correct_health_input);
+        com.google.android.material.textfield.TextInputEditText contextInput = dialogView.findViewById(R.id.additional_context_input);
+
+        // Pre-fill current values
+        if (analysisResult.identification != null && analysisResult.identification.commonName != null) {
+            nameInput.setText(analysisResult.identification.commonName);
+        }
+        if (analysisResult.healthAssessment != null) {
+            healthInput.setText(String.valueOf(analysisResult.healthAssessment.score));
+        }
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+            .setTitle("Correct Analysis")
+            .setView(dialogView)
+            .setPositiveButton("Re-analyze", null) // Set to null to override later
+            .setNeutralButton("Save Without Re-analysis", null)
+            .setNegativeButton("Cancel", null)
+            .create();
+
+        dialog.setOnShowListener(dialogInterface -> {
+            // Override positive button to validate before closing
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+                String correctedName = nameInput.getText() != null ? nameInput.getText().toString().trim() : "";
+                String healthText = healthInput.getText() != null ? healthInput.getText().toString().trim() : "";
+                String additionalContext = contextInput.getText() != null ? contextInput.getText().toString().trim() : "";
+
+                // Validate health score if provided
+                int correctedHealth = 0;
+                if (!healthText.isEmpty()) {
+                    try {
+                        correctedHealth = Integer.parseInt(healthText);
+                        if (correctedHealth < 1 || correctedHealth > 10) {
+                            Toast.makeText(this, "Health score must be between 1 and 10", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                    } catch (NumberFormatException e) {
+                        Toast.makeText(this, "Invalid health score", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                }
+
+                // Check if name changed (different from original)
+                String originalName = analysisResult.identification != null ? analysisResult.identification.commonName : "";
+                boolean nameChanged = !correctedName.equals(originalName);
+
+                // Check if there are any corrections to apply
+                if (!nameChanged && additionalContext.isEmpty()) {
+                    Toast.makeText(this, "Please provide corrections or additional context", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
+                // Close dialog
+                dialog.dismiss();
+
+                // Start re-analysis with corrections
+                Uri uriToUse = localImageUri != null ? localImageUri : imageUri;
+                String nameToSend = nameChanged ? correctedName : null;
+                viewModel.reanalyzeWithCorrections(uriToUse, plantId, nameToSend, additionalContext.isEmpty() ? null : additionalContext);
+            });
+
+            // Override neutral button for save without re-analysis
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> {
+                String correctedName = nameInput.getText() != null ? nameInput.getText().toString().trim() : "";
+                String healthText = healthInput.getText() != null ? healthInput.getText().toString().trim() : "";
+
+                // Validate health score if provided
+                int correctedHealth = 0;
+                if (!healthText.isEmpty()) {
+                    try {
+                        correctedHealth = Integer.parseInt(healthText);
+                        if (correctedHealth < 1 || correctedHealth > 10) {
+                            Toast.makeText(this, "Health score must be between 1 and 10", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                    } catch (NumberFormatException e) {
+                        Toast.makeText(this, "Invalid health score", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                }
+
+                // Check if anything changed
+                String originalName = analysisResult.identification != null ? analysisResult.identification.commonName : "";
+                int originalHealth = analysisResult.healthAssessment != null ? analysisResult.healthAssessment.score : 0;
+                boolean nameChanged = !correctedName.isEmpty() && !correctedName.equals(originalName);
+                boolean healthChanged = correctedHealth > 0 && correctedHealth != originalHealth;
+
+                if (!nameChanged && !healthChanged) {
+                    // Check if user only provided additional context
+                    String additionalContext = contextInput.getText() != null ? contextInput.getText().toString().trim() : "";
+                    if (!additionalContext.isEmpty()) {
+                        Toast.makeText(this, "Additional context requires re-analysis. Use 'Re-analyze' instead.", Toast.LENGTH_LONG).show();
+                    } else {
+                        Toast.makeText(this, "No changes to save", Toast.LENGTH_SHORT).show();
+                    }
+                    dialog.dismiss();
+                    return;
+                }
+
+                // Close dialog
+                dialog.dismiss();
+
+                // Update displayed values immediately
+                if (nameChanged) {
+                    plantCommonName.setText(correctedName);
+                    if (analysisResult.identification != null) {
+                        analysisResult.identification.commonName = correctedName;
+                    }
+                }
+                if (healthChanged) {
+                    healthScore.setText(String.valueOf(correctedHealth));
+                    setHealthScoreColor(correctedHealth);
+                    if (analysisResult.healthAssessment != null) {
+                        analysisResult.healthAssessment.score = correctedHealth;
+                    }
+                }
+
+                // Save via ViewModel (Note: this is simplified - full implementation would need analysisId)
+                Toast.makeText(this, "Corrections will be saved when you tap 'Save to Library'", Toast.LENGTH_SHORT).show();
+            });
+        });
+
+        dialog.show();
+    }
+
+    /**
+     * Requests notification permission on first save (Android 13+).
+     * Shows rationale dialog first, then system permission dialog.
+     */
+    private void requestNotificationPermissionIfNeeded() {
+        // Check if Android 13+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            return;
+        }
+
+        // Check if already requested
+        if (keystoreHelper.hasRequestedNotificationPermission()) {
+            return;
+        }
+
+        // Check if already granted
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                == PackageManager.PERMISSION_GRANTED) {
+            keystoreHelper.setNotificationPermissionRequested();
+            return;
+        }
+
+        // Mark as requested before showing dialog (prevent repeated prompts)
+        keystoreHelper.setNotificationPermissionRequested();
+
+        // Show rationale dialog
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.enable_notifications_title)
+                .setMessage(R.string.enable_notifications_rationale)
+                .setPositiveButton(R.string.enable, (dialog, which) -> {
+                    // Request permission
+                    ActivityCompat.requestPermissions(this,
+                            new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                            REQUEST_NOTIFICATION_PERMISSION);
+                })
+                .setNegativeButton(R.string.not_now, null)
+                .show();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
+                                          @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        if (requestCode == REQUEST_NOTIFICATION_PERMISSION) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                // Permission granted - notifications will work
+                Toast.makeText(this, "Notifications enabled", Toast.LENGTH_SHORT).show();
+            } else {
+                // Permission denied - show one-time banner if not dismissed
+                if (!keystoreHelper.hasNotificationBannerDismissed()) {
+                    showNotificationPermissionBanner();
+                }
             }
-        } catch (NumberFormatException ignored) {}
+        }
+    }
 
-        // Keyword fallbacks
-        if (lower.contains("daily")) return 1;
-        if (lower.contains("weekly") || lower.contains("week")) return 7;
-        if (lower.contains("biweekly") || lower.contains("bi-weekly")) return 14;
-        if (lower.contains("monthly") || lower.contains("month")) return 30;
-        if (lower.contains("yearly") || lower.contains("annual")) return 365;
+    /**
+     * Shows dismissable banner for enabling notifications in settings.
+     */
+    private void showNotificationPermissionBanner() {
+        Snackbar snackbar = Snackbar.make(
+                findViewById(android.R.id.content),
+                R.string.enable_notifications_banner,
+                Snackbar.LENGTH_INDEFINITE
+        );
 
-        return 7; // Default to weekly
+        snackbar.setAction(R.string.open_settings, v -> {
+            // Open app notification settings
+            Intent intent = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS);
+            intent.putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName());
+            startActivity(intent);
+            snackbar.dismiss();
+        });
+
+        snackbar.addCallback(new Snackbar.Callback() {
+            @Override
+            public void onDismissed(Snackbar transientBottomBar, int event) {
+                if (event == DISMISS_EVENT_MANUAL || event == DISMISS_EVENT_SWIPE) {
+                    keystoreHelper.setNotificationBannerDismissed();
+                }
+            }
+        });
+
+        snackbar.show();
+    }
+
+    /**
+     * Shows Quick Diagnosis tooltip after first analysis completion.
+     */
+    private void showQuickDiagnosisTooltipIfNeeded() {
+        if (!keystoreHelper.hasShownQuickDiagnosisTooltip()) {
+            Toast toast = Toast.makeText(this, R.string.quick_diagnosis_tooltip, Toast.LENGTH_LONG);
+            toast.setGravity(Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL, 0, 200);
+            toast.show();
+            keystoreHelper.setQuickDiagnosisTooltipShown();
+        }
+    }
+
+    /**
+     * Handles schedule update prompts from ViewModel.
+     * Shows dialog for each user-customized schedule that conflicts with new AI data.
+     */
+    private void onScheduleUpdatePrompts(List<CareSchedule> schedules) {
+        if (schedules == null || schedules.isEmpty()) {
+            return;
+        }
+
+        // Show dialog for each conflict (in sequence)
+        for (CareSchedule schedule : schedules) {
+            showScheduleUpdateDialog(schedule);
+        }
+    }
+
+    /**
+     * Shows dialog for a single schedule update conflict.
+     */
+    private void showScheduleUpdateDialog(CareSchedule schedule) {
+        // Extract AI-recommended frequency from notes
+        if (schedule.notes == null || !schedule.notes.startsWith("AI_RECOMMENDED:")) {
+            return;
+        }
+
+        String[] parts = schedule.notes.split("\\|", 2);
+        String freqPart = parts[0].substring("AI_RECOMMENDED:".length());
+        int aiFrequency = Integer.parseInt(freqPart);
+        int currentFrequency = schedule.frequencyDays;
+
+        // Format care type for display
+        String careTypeDisplay = schedule.careType;
+        if ("water".equals(schedule.careType)) {
+            careTypeDisplay = "watering";
+        } else if ("fertilize".equals(schedule.careType)) {
+            careTypeDisplay = "fertilizing";
+        } else if ("repot".equals(schedule.careType)) {
+            careTypeDisplay = "repotting";
+        }
+
+        String message = getString(R.string.ai_recommends_update, careTypeDisplay, aiFrequency, currentFrequency);
+
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.schedule_update_title)
+                .setMessage(message)
+                .setPositiveButton(R.string.update_schedule, (dialog, which) -> {
+                    // User accepts AI recommendation
+                    viewModel.acceptScheduleUpdate(schedule);
+                    Toast.makeText(this, "Schedule updated", Toast.LENGTH_SHORT).show();
+                })
+                .setNegativeButton(R.string.keep_current, null)
+                .show();
     }
 
     @Override

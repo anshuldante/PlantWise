@@ -17,16 +17,25 @@ import okhttp3.RequestBody;
 import okhttp3.Response;
 
 public class GeminiProvider implements AIProvider {
-    private static final String API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent";
+    private static final String DEFAULT_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent";
     private final String apiKey;
+    private final String apiUrl;
     private final OkHttpClient client;
 
     public GeminiProvider(String apiKey) {
         this.apiKey = apiKey;
+        this.apiUrl = DEFAULT_API_URL;
         this.client = new OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)
             .build();
+    }
+
+    // Package-private constructor for testing with MockWebServer
+    GeminiProvider(String apiKey, String apiUrl, OkHttpClient client) {
+        this.apiKey = apiKey;
+        this.apiUrl = apiUrl;
+        this.client = client;
     }
 
     @Override
@@ -68,7 +77,7 @@ public class GeminiProvider implements AIProvider {
                 MediaType.parse("application/json")
             );
 
-            String url = API_URL + "?key=" + apiKey;
+            String url = apiUrl + "?key=" + apiKey;
 
             Request request = new Request.Builder()
                 .url(url)
@@ -108,7 +117,7 @@ public class GeminiProvider implements AIProvider {
                 }
 
                 PlantAnalysisResult result = JsonParser.parsePlantAnalysis(aiText);
-                result.rawResponse = responseBody;
+                result.rawResponse = aiText;
                 return result;
             }
         } catch (JSONException | IOException e) {

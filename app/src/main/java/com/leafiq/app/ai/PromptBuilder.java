@@ -55,6 +55,88 @@ public class PromptBuilder {
         return sb.toString();
     }
 
+    public static String buildCorrectionPrompt(
+            @Nullable String correctedName,
+            @Nullable String additionalContext,
+            @Nullable List<Analysis> previousAnalyses,
+            @Nullable String location) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("You are an expert botanist and plant care specialist. ");
+        sb.append("The user has provided corrections to a previous analysis. ");
+        sb.append("Please re-analyze based on the updated information.\n\n");
+
+        if (correctedName != null && !correctedName.isEmpty()) {
+            sb.append("The user confirms this plant is: ").append(correctedName).append("\n");
+            sb.append("Use this as the correct identification. Focus on health assessment and care plan.\n");
+        }
+
+        if (location != null && !location.isEmpty()) {
+            sb.append("Location: ").append(location).append("\n");
+        }
+
+        if (additionalContext != null && !additionalContext.isEmpty()) {
+            sb.append("\nAdditional context from the user:\n");
+            sb.append(additionalContext).append("\n");
+            sb.append("\nIncorporate this information into your assessment.\n");
+        }
+
+        if (previousAnalyses != null && !previousAnalyses.isEmpty()) {
+            sb.append("\nPrevious analyses for this plant:\n");
+            for (Analysis a : previousAnalyses) {
+                sb.append("- ").append(formatTimestamp(a.createdAt))
+                  .append(": Health ").append(a.healthScore)
+                  .append("/10, Summary: ").append(a.summary).append("\n");
+            }
+        }
+
+        sb.append("\nRespond ONLY with valid JSON in this exact format ");
+        sb.append("(no markdown, no backticks, no explanatory text before or after):\n");
+        sb.append(getJsonTemplate());
+        sb.append("\n\nBe specific and actionable.");
+        return sb.toString();
+    }
+
+    public static String buildQuickDiagnosisPrompt() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("You are an expert botanist. ");
+        sb.append("Quickly assess this plant's health from the photo. ");
+        sb.append("DO NOT identify the plant species — focus ONLY on health assessment.\n\n");
+
+        sb.append("Respond ONLY with valid JSON in this exact format ");
+        sb.append("(no markdown, no backticks, no explanatory text before or after):\n");
+        sb.append(getQuickDiagnosisJsonTemplate());
+
+        sb.append("\n\nBe specific about visible symptoms. ");
+        sb.append("If the plant looks healthy, say so. ");
+        sb.append("If you can see the pot, soil, or surroundings, factor those in.");
+
+        return sb.toString();
+    }
+
+    private static String getQuickDiagnosisJsonTemplate() {
+        return "{\n"
+            + "  \"healthAssessment\": {\n"
+            + "    \"score\": 1-10,\n"
+            + "    \"label\": \"Healthy | Needs Attention | Critical\",\n"
+            + "    \"summary\": \"1-2 sentence health overview\"\n"
+            + "  },\n"
+            + "  \"issues\": [\n"
+            + "    {\n"
+            + "      \"name\": \"string\",\n"
+            + "      \"severity\": \"low | medium | high\",\n"
+            + "      \"description\": \"string\"\n"
+            + "    }\n"
+            + "  ],\n"
+            + "  \"immediateActions\": [\n"
+            + "    {\n"
+            + "      \"action\": \"string\",\n"
+            + "      \"priority\": \"urgent | soon | when_convenient\",\n"
+            + "      \"detail\": \"string\"\n"
+            + "    }\n"
+            + "  ]\n"
+            + "}";
+    }
+
     private static String formatTimestamp(long timestamp) {
         if (timestamp <= 0) return "Unknown date";
         SimpleDateFormat sdf = new SimpleDateFormat("MMM d, yyyy", Locale.US);

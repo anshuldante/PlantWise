@@ -6,11 +6,14 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
+import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -57,6 +60,65 @@ public class LibraryFragment extends Fragment implements PlantCardAdapter.OnPlan
         adapter = new PlantCardAdapter(this);
         recyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
         recyclerView.setAdapter(adapter);
+
+        // Add swipe-to-delete
+        ItemTouchHelper.SimpleCallback swipeCallback = new ItemTouchHelper.SimpleCallback(
+                0, ItemTouchHelper.START | ItemTouchHelper.END) {
+            @Override
+            public boolean onMove(@NonNull RecyclerView recyclerView,
+                                @NonNull RecyclerView.ViewHolder viewHolder,
+                                @NonNull RecyclerView.ViewHolder target) {
+                return false; // No drag support
+            }
+
+            @Override
+            public void onSwiped(@NonNull RecyclerView.ViewHolder viewHolder, int direction) {
+                int position = viewHolder.getAdapterPosition();
+                Plant plant = adapter.getCurrentList().get(position);
+                showDeleteConfirmation(plant, position);
+            }
+        };
+
+        ItemTouchHelper itemTouchHelper = new ItemTouchHelper(swipeCallback);
+        itemTouchHelper.attachToRecyclerView(recyclerView);
+    }
+
+    private void showDeleteConfirmation(Plant plant, int position) {
+        String displayName = plant.nickname != null && !plant.nickname.isEmpty()
+                ? plant.nickname
+                : (plant.commonName != null && !plant.commonName.isEmpty()
+                        ? plant.commonName
+                        : "this plant");
+
+        new AlertDialog.Builder(requireContext())
+                .setTitle("Delete Plant")
+                .setMessage("Delete " + displayName + "? This cannot be undone.")
+                .setPositiveButton("Delete", (dialog, which) -> {
+                    viewModel.deletePlant(plant, new com.leafiq.app.data.repository.PlantRepository.RepositoryCallback<Void>() {
+                        @Override
+                        public void onSuccess(Void result) {
+                            requireActivity().runOnUiThread(() ->
+                                    Toast.makeText(requireContext(), "Plant deleted", Toast.LENGTH_SHORT).show()
+                            );
+                        }
+
+                        @Override
+                        public void onError(Exception e) {
+                            requireActivity().runOnUiThread(() -> {
+                                Toast.makeText(requireContext(), "Failed to delete plant", Toast.LENGTH_SHORT).show();
+                                adapter.notifyItemChanged(position);
+                            });
+                        }
+                    });
+                })
+                .setNegativeButton("Cancel", (dialog, which) -> {
+                    adapter.notifyItemChanged(position);
+                })
+                .setOnCancelListener(dialog -> {
+                    adapter.notifyItemChanged(position);
+                })
+                .setCancelable(false)
+                .show();
     }
 
     @Override

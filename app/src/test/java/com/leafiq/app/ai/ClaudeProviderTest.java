@@ -2,23 +2,34 @@ package com.leafiq.app.ai;
 
 import static com.google.common.truth.Truth.assertThat;
 
+import com.leafiq.app.data.model.PlantAnalysisResult;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
 
+import okhttp3.OkHttpClient;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 
 public class ClaudeProviderTest {
 
     private MockWebServer mockWebServer;
+    private OkHttpClient client;
+
+    // Minimal valid plant analysis JSON that JsonParser can parse
+    private static final String PLANT_JSON = "{\"identification\":{\"commonName\":\"Monstera\","
+            + "\"scientificName\":\"Monstera deliciosa\",\"confidence\":\"high\",\"notes\":\"\"},"
+            + "\"healthAssessment\":{\"score\":8,\"summary\":\"Healthy\",\"issues\":[]},"
+            + "\"immediateActions\":[],\"carePlan\":{},\"funFact\":\"Test fact\"}";
 
     @Before
     public void setUp() throws IOException {
         mockWebServer = new MockWebServer();
         mockWebServer.start();
+        client = new OkHttpClient();
     }
 
     @After
@@ -57,56 +68,91 @@ public class ClaudeProviderTest {
     }
 
     @Test
-    public void analyzePhoto_parsesJsonResponse() throws Exception {
-        // This test demonstrates the expected behavior
-        // In production, you'd inject the URL or use a TestClaudeProvider
-
-        String mockApiResponse = "{"
-            + "\"content\": [{"
-            + "  \"type\": \"text\","
-            + "  \"text\": \"{\\\"identification\\\":{\\\"commonName\\\":\\\"Test Plant\\\",\\\"scientificName\\\":\\\"Testus plantus\\\",\\\"confidence\\\":\\\"high\\\",\\\"notes\\\":\\\"Test\\\"},\\\"healthAssessment\\\":{\\\"score\\\":8,\\\"summary\\\":\\\"Good\\\",\\\"issues\\\":[]},\\\"immediateActions\\\":[],\\\"carePlan\\\":{},\\\"funFact\\\":\\\"Test fact\\\"}\""
-            + "}]"
-            + "}";
-
-        mockWebServer.enqueue(new MockResponse()
-            .setBody(mockApiResponse)
-            .setResponseCode(200));
-
-        // This would work if ClaudeProvider accepted a base URL:
-        // ClaudeProvider provider = new ClaudeProvider("sk-test", mockWebServer.url("/").toString());
-        // PlantAnalysisResult result = provider.analyzePhoto("base64data", "analyze");
-        // assertThat(result.identification.commonName).isEqualTo("Test Plant");
-
-        assertThat(true).isTrue(); // Placeholder - actual test needs URL injection
-    }
-
-    @Test
-    public void analyzePhoto_stripsMarkdownBackticks() {
-        // Test that the provider handles responses wrapped in markdown
-        String responseWithBackticks = "```json\n{\"identification\":{\"commonName\":\"Test\"}}\n```";
-        String cleaned = responseWithBackticks.trim()
-            .replaceAll("^```json?\\s*", "")
-            .replaceAll("\\s*```$", "");
-
-        assertThat(cleaned).isEqualTo("{\"identification\":{\"commonName\":\"Test\"}}");
-    }
-
-    @Test
-    public void analyzePhoto_extractsJsonFromText() {
-        // Test that the provider can find JSON within surrounding text
-        String responseWithExtraText = "Here is the analysis:\n{\"identification\":{\"commonName\":\"Test\"}}\nHope this helps!";
-
-        int start = responseWithExtraText.indexOf('{');
-        int end = responseWithExtraText.lastIndexOf('}');
-        String extracted = responseWithExtraText.substring(start, end + 1);
-
-        assertThat(extracted).isEqualTo("{\"identification\":{\"commonName\":\"Test\"}}");
-    }
-
-    @Test
     public void supportsVision_returnsTrue() {
         ClaudeProvider provider = new ClaudeProvider("sk-test");
         assertThat(provider.supportsVision()).isTrue();
+    }
+
+    // ==================== rawResponse tests (06-06 fix) ====================
+
+    @Test
+    public void analyzePhoto_rawResponse_containsExtractedJson_notApiWrapper() throws Exception {
+        // Claude API wraps the plant JSON in {"content":[{"type":"text","text":"..."}]}
+        String apiResponse = "{\"content\":[{\"type\":\"text\",\"text\":"
+                + "\"" + PLANT_JSON.replace("\"", "\\\"") + "\""
+                + "}]}";
+
+        mockWebServer.enqueue(new MockResponse().setBody(apiResponse).setResponseCode(200));
+
+        ClaudeProvider provider = new ClaudeProvider("sk-test",
+                mockWebServer.url("/").toString(), client);
+        PlantAnalysisResult result = provider.analyzePhoto("base64data", "analyze");
+
+        // rawResponse should be the extracted plant JSON, not the API wrapper
+        assertThat(result.rawResponse).isEqualTo(PLANT_JSON);
+        assertThat(result.rawResponse).doesNotContain("\"content\":[");
+    }
+
+    @Test
+    public void analyzePhoto_parsesIdentification() throws Exception {
+        String apiResponse = "{\"content\":[{\"type\":\"text\",\"text\":"
+                + "\"" + PLANT_JSON.replace("\"", "\\\"") + "\""
+                + "}]}";
+
+        mockWebServer.enqueue(new MockResponse().setBody(apiResponse).setResponseCode(200));
+
+        ClaudeProvider provider = new ClaudeProvider("sk-test",
+                mockWebServer.url("/").toString(), client);
+        PlantAnalysisResult result = provider.analyzePhoto("base64data", "analyze");
+
+        assertThat(result.identification.commonName).isEqualTo("Monstera");
+        assertThat(result.identification.scientificName).isEqualTo("Monstera deliciosa");
+        assertThat(result.healthAssessment.score).isEqualTo(8);
+    }
+
+    @Test
+    public void analyzePhoto_stripsMarkdownBackticks() throws Exception {
+        // AI wraps JSON in markdown code blocks
+        String wrappedJson = "```json\n" + PLANT_JSON + "\n```";
+        String apiResponse = "{\"content\":[{\"type\":\"text\",\"text\":"
+                + "\"" + wrappedJson.replace("\"", "\\\"").replace("\n", "\\n") + "\""
+                + "}]}";
+
+        mockWebServer.enqueue(new MockResponse().setBody(apiResponse).setResponseCode(200));
+
+        ClaudeProvider provider = new ClaudeProvider("sk-test",
+                mockWebServer.url("/").toString(), client);
+        PlantAnalysisResult result = provider.analyzePhoto("base64data", "analyze");
+
+        assertThat(result.rawResponse).isEqualTo(PLANT_JSON);
+        assertThat(result.rawResponse).doesNotContain("```");
+    }
+
+    @Test
+    public void analyzePhoto_extractsJsonFromSurroundingText() throws Exception {
+        // AI adds explanation text around JSON
+        String textWithJson = "Here is the analysis:\\n" + PLANT_JSON.replace("\"", "\\\"") + "\\nHope this helps!";
+        String apiResponse = "{\"content\":[{\"type\":\"text\",\"text\":\"" + textWithJson + "\"}]}";
+
+        mockWebServer.enqueue(new MockResponse().setBody(apiResponse).setResponseCode(200));
+
+        ClaudeProvider provider = new ClaudeProvider("sk-test",
+                mockWebServer.url("/").toString(), client);
+        PlantAnalysisResult result = provider.analyzePhoto("base64data", "analyze");
+
+        // Should extract just the JSON between first { and last }
+        assertThat(result.rawResponse).startsWith("{");
+        assertThat(result.rawResponse).endsWith("}");
+        assertThat(result.identification.commonName).isEqualTo("Monstera");
+    }
+
+    @Test(expected = AIProviderException.class)
+    public void analyzePhoto_apiError_throwsException() throws Exception {
+        mockWebServer.enqueue(new MockResponse().setResponseCode(500).setBody("Internal Server Error"));
+
+        ClaudeProvider provider = new ClaudeProvider("sk-test",
+                mockWebServer.url("/").toString(), client);
+        provider.analyzePhoto("base64data", "analyze");
     }
 
     @Test

@@ -56,20 +56,20 @@ public class MainActivityTest {
     }
 
     @Test
-    public void clickSettingsTab_showsSettingsFragment() {
-        // Click on settings tab
-        onView(withId(R.id.nav_settings))
+    public void clickTimelineTab_showsTimelineFragment() {
+        // Click on timeline tab
+        onView(withId(R.id.nav_timeline))
             .perform(click());
 
-        // Settings content should be visible
-        onView(withId(R.id.edit_api_key))
+        // Timeline content should be visible (filter chips or empty state)
+        onView(withId(R.id.filter_chips))
             .check(matches(isDisplayed()));
     }
 
     @Test
-    public void clickSettingsTab_thenLibrary_returnsToLibrary() {
-        // Click on settings tab
-        onView(withId(R.id.nav_settings))
+    public void clickTimelineTab_thenLibrary_returnsToLibrary() {
+        // Click on timeline tab
+        onView(withId(R.id.nav_timeline))
             .perform(click());
 
         // Click on library tab
@@ -82,14 +82,14 @@ public class MainActivityTest {
     }
 
     @Test
-    public void settingsFragment_hasApiKeyInput() {
-        onView(withId(R.id.nav_settings))
+    public void timelineFragment_hasFilterChips() {
+        onView(withId(R.id.nav_timeline))
             .perform(click());
 
-        onView(withId(R.id.edit_api_key))
+        onView(withId(R.id.chip_all))
             .check(matches(isDisplayed()));
 
-        onView(withId(R.id.btn_save_key))
+        onView(withId(R.id.chip_healthy))
             .check(matches(isDisplayed()));
     }
 }

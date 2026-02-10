@@ -28,6 +28,47 @@
                 android:contentDescription="@string/capture" />
         </com.google.android.material.card.MaterialCardView>
 
+        <!-- Photo Tips -->
+        <LinearLayout
+            android:id="@+id/photo_tips_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:padding="12dp"
+            android:orientation="vertical"
+            android:visibility="visible">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Photo Tips"
+                android:textAppearance="?attr/textAppearanceLabelMedium"
+                android:textColor="@color/md_theme_primary" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="\u2022 Use natural lighting or bright indoor light"
+                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:textColor="@color/text_secondary" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="\u2022 Focus on affected areas like leaves and stems"
+                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:textColor="@color/text_secondary" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="\u2022 Take multiple angles for comprehensive analysis"
+                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:textColor="@color/text_secondary" />
+
+        </LinearLayout>
+
         <!-- Loading State -->
         <LinearLayout
             android:id="@+id/loading_container"
@@ -275,12 +316,22 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
+            <!-- Correct This Button -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_correct"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Correct this"
+                android:visibility="gone"
+                style="?attr/materialButtonOutlinedStyle" />
+
             <!-- Save Button -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_save"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="24dp"
+                android:layout_marginTop="8dp"
                 android:layout_marginBottom="16dp"
                 android:text="@string/save_to_library" />
 

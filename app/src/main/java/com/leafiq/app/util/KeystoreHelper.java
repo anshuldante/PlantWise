@@ -19,6 +19,11 @@ public class KeystoreHelper {
     // Legacy key for migration
     private static final String KEY_API_KEY_LEGACY = "api_key";
     private static final String KEY_PROVIDER = "ai_provider";
+    private static final String KEY_PREFERRED_REMINDER_TIME = "preferred_reminder_time";
+    private static final String KEY_REMINDERS_PAUSED = "reminders_paused";
+    private static final String KEY_NOTIFICATION_PERMISSION_REQUESTED = "notification_permission_requested";
+    private static final String KEY_QUICK_DIAGNOSIS_TOOLTIP_SHOWN = "quick_diagnosis_tooltip_shown";
+    private static final String KEY_NOTIFICATION_BANNER_DISMISSED = "notification_banner_dismissed";
 
     public static final String PROVIDER_OPENAI = "openai";
     public static final String PROVIDER_CLAUDE = "claude";
@@ -107,5 +112,51 @@ public class KeystoreHelper {
         String key = getKeyForProvider(provider);
         String apiKey = prefs.getString(key, null);
         return apiKey != null && !apiKey.trim().isEmpty();
+    }
+
+    // Reminder settings
+    public void savePreferredReminderTime(int hourOfDay, int minute) {
+        int minutesSinceMidnight = hourOfDay * 60 + minute;
+        prefs.edit().putInt(KEY_PREFERRED_REMINDER_TIME, minutesSinceMidnight).apply();
+    }
+
+    public int[] getPreferredReminderTime() {
+        int minutesSinceMidnight = prefs.getInt(KEY_PREFERRED_REMINDER_TIME, 8 * 60); // Default 8:00 AM
+        int hour = minutesSinceMidnight / 60;
+        int minute = minutesSinceMidnight % 60;
+        return new int[]{hour, minute};
+    }
+
+    public void setRemindersPaused(boolean paused) {
+        prefs.edit().putBoolean(KEY_REMINDERS_PAUSED, paused).apply();
+    }
+
+    public boolean areRemindersPaused() {
+        return prefs.getBoolean(KEY_REMINDERS_PAUSED, false);
+    }
+
+    // One-time state tracking for UI flows
+    public boolean hasRequestedNotificationPermission() {
+        return prefs.getBoolean(KEY_NOTIFICATION_PERMISSION_REQUESTED, false);
+    }
+
+    public void setNotificationPermissionRequested() {
+        prefs.edit().putBoolean(KEY_NOTIFICATION_PERMISSION_REQUESTED, true).apply();
+    }
+
+    public boolean hasShownQuickDiagnosisTooltip() {
+        return prefs.getBoolean(KEY_QUICK_DIAGNOSIS_TOOLTIP_SHOWN, false);
+    }
+
+    public void setQuickDiagnosisTooltipShown() {
+        prefs.edit().putBoolean(KEY_QUICK_DIAGNOSIS_TOOLTIP_SHOWN, true).apply();
+    }
+
+    public boolean hasNotificationBannerDismissed() {
+        return prefs.getBoolean(KEY_NOTIFICATION_BANNER_DISMISSED, false);
+    }
+
+    public void setNotificationBannerDismissed() {
+        prefs.edit().putBoolean(KEY_NOTIFICATION_BANNER_DISMISSED, true).apply();
     }
 }
