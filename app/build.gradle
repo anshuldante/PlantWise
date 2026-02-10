@@ -79,6 +79,9 @@ dependencies {
     implementation libs.glide
     annotationProcessor libs.glide.compiler
 
+    // Image viewer with pinch-to-zoom
+    implementation 'com.github.chrisbanes:PhotoView:2.3.0'
+
     // Security for EncryptedSharedPreferences
     implementation libs.security.crypto
 
