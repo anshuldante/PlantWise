@@ -9,10 +9,12 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 
 import okhttp3.OkHttpClient;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
+import okhttp3.mockwebserver.SocketPolicy;
 
 public class OpenAIProviderTest {
 
@@ -121,5 +123,70 @@ public class OpenAIProviderTest {
         OpenAIProvider provider = new OpenAIProvider("sk-test",
                 mockWebServer.url("/").toString(), client);
         provider.analyzePhoto("base64data", "analyze");
+    }
+
+    // ==================== Network error tests (09-05) ====================
+
+    @Test
+    public void analyzePhoto_timeout_throwsException() throws Exception {
+        // Use a client with very short timeout for fast test execution
+        OkHttpClient shortTimeoutClient = new OkHttpClient.Builder()
+            .readTimeout(1, TimeUnit.SECONDS)
+            .callTimeout(2, TimeUnit.SECONDS)
+            .build();
+
+        mockWebServer.enqueue(new MockResponse()
+            .setSocketPolicy(SocketPolicy.NO_RESPONSE));
+
+        OpenAIProvider provider = new OpenAIProvider("sk-test",
+            mockWebServer.url("/").toString(), shortTimeoutClient);
+
+        AIProviderException exception = null;
+        try {
+            provider.analyzePhoto("base64data", "analyze");
+        } catch (AIProviderException e) {
+            exception = e;
+        }
+        assertThat(exception).isNotNull();
+    }
+
+    @Test
+    public void analyzePhoto_401_throwsExceptionWithStatusCode() throws Exception {
+        mockWebServer.enqueue(new MockResponse()
+            .setResponseCode(401)
+            .setBody("{\"error\":{\"message\":\"Invalid API key\"}}"));
+
+        OpenAIProvider provider = new OpenAIProvider("bad-key",
+            mockWebServer.url("/").toString(), client);
+
+        AIProviderException exception = null;
+        try {
+            provider.analyzePhoto("base64data", "analyze");
+        } catch (AIProviderException e) {
+            exception = e;
+        }
+
+        assertThat(exception).isNotNull();
+        assertThat(exception.getHttpStatusCode()).isEqualTo(401);
+    }
+
+    @Test
+    public void analyzePhoto_500_throwsExceptionWithStatusCode() throws Exception {
+        mockWebServer.enqueue(new MockResponse()
+            .setResponseCode(500)
+            .setBody("Internal Server Error"));
+
+        OpenAIProvider provider = new OpenAIProvider("sk-test",
+            mockWebServer.url("/").toString(), client);
+
+        AIProviderException exception = null;
+        try {
+            provider.analyzePhoto("base64data", "analyze");
+        } catch (AIProviderException e) {
+            exception = e;
+        }
+
+        assertThat(exception).isNotNull();
+        assertThat(exception.getHttpStatusCode()).isEqualTo(500);
     }
 }
