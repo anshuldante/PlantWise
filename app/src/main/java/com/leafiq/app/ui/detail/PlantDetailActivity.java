@@ -28,6 +28,7 @@ import com.leafiq.app.ui.analysis.AnalysisActivity;
 import com.leafiq.app.ui.camera.CameraActivity;
 import com.leafiq.app.ui.timeline.AnalysisDetailActivity;
 import com.leafiq.app.ui.timeline.SparklineView;
+import com.leafiq.app.util.WindowInsetsHelper;
 import com.bumptech.glide.Glide;
 import com.google.android.material.appbar.CollapsingToolbarLayout;
 import com.google.android.material.button.MaterialButton;
@@ -84,6 +85,10 @@ public class PlantDetailActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // Enable edge-to-edge for transparent navigation bar
+        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+
         setContentView(R.layout.activity_plant_detail);
 
         plantId = getIntent().getStringExtra(EXTRA_PLANT_ID);
@@ -137,6 +142,10 @@ public class PlantDetailActivity extends AppCompatActivity {
         setupInputListeners();
         setupReminderToggle();
         setupCareHistoryRecycler();
+
+        // Apply bottom insets to scrollable content so it's visible above system nav
+        androidx.core.widget.NestedScrollView scrollContent = findViewById(R.id.scroll_content);
+        WindowInsetsHelper.applyBottomInsets(scrollContent);
     }
 
     private void setupInputListeners() {

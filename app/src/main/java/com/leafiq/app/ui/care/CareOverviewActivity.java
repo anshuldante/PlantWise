@@ -14,6 +14,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.appbar.MaterialToolbar;
 import com.leafiq.app.R;
 import com.leafiq.app.data.repository.PlantRepository;
+import com.leafiq.app.util.WindowInsetsHelper;
 
 /**
  * Care Overview screen showing today's tasks, upcoming 7-day tasks, and recent completions.
@@ -38,7 +39,15 @@ public class CareOverviewActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // Enable edge-to-edge for transparent navigation bar
+        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+
         setContentView(R.layout.activity_care_overview);
+
+        // Apply bottom insets to scrollable content
+        View scrollView = findViewById(R.id.scroll_view);
+        WindowInsetsHelper.applyBottomInsets(scrollView);
 
         // Setup toolbar
         MaterialToolbar toolbar = findViewById(R.id.toolbar);

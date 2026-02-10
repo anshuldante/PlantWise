@@ -18,6 +18,7 @@ import com.google.android.material.chip.Chip;
 import com.google.android.material.chip.ChipGroup;
 import com.leafiq.app.R;
 import com.leafiq.app.ui.camera.CameraActivity;
+import com.leafiq.app.util.WindowInsetsHelper;
 
 import java.util.List;
 
@@ -56,6 +57,10 @@ public class TimelineFragment extends Fragment {
 
         // Setup RecyclerView with adapter
         recyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
+
+        // Apply bottom insets for edge-to-edge
+        WindowInsetsHelper.applyBottomInsets(recyclerView);
+
         adapter = new TimelineAdapter(requireContext(), new TimelineAdapter.OnTimelineItemClickListener() {
             @Override
             public void onItemClick(int position) {

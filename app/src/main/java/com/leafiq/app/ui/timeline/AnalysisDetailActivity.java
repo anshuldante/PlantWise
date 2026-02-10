@@ -26,6 +26,7 @@ import com.leafiq.app.data.repository.PlantRepository;
 import com.leafiq.app.util.AppExecutors;
 import com.leafiq.app.util.HealthUtils;
 import com.leafiq.app.util.JsonParser;
+import com.leafiq.app.util.WindowInsetsHelper;
 
 import java.io.File;
 import java.text.SimpleDateFormat;
@@ -79,7 +80,15 @@ public class AnalysisDetailActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // Enable edge-to-edge for transparent navigation bar
+        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+
         setContentView(R.layout.activity_analysis_detail);
+
+        // Apply bottom insets to scrollable content
+        View scrollView = findViewById(R.id.scroll_view);
+        WindowInsetsHelper.applyBottomInsets(scrollView);
 
         // Get intent extras
         analysisId = getIntent().getStringExtra(EXTRA_ANALYSIS_ID);

@@ -28,6 +28,7 @@ import com.leafiq.app.ui.library.LibraryFragment;
 import com.leafiq.app.ui.settings.SettingsFragment;
 import com.leafiq.app.ui.timeline.TimelineFragment;
 import com.leafiq.app.util.KeystoreHelper;
+import com.leafiq.app.util.WindowInsetsHelper;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 
 public class MainActivity extends AppCompatActivity {
@@ -54,6 +55,10 @@ public class MainActivity extends AppCompatActivity {
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, 0);
             return insets;
         });
+
+        // Apply bottom insets to BottomNavigationView so it sits above system nav
+        BottomNavigationView bottomNavView = findViewById(R.id.bottom_navigation);
+        WindowInsetsHelper.applyBottomInsets(bottomNavView);
 
         // Setup toolbar
         Toolbar toolbar = findViewById(R.id.toolbar);
