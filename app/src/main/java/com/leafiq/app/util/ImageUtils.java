@@ -29,13 +29,22 @@ public class ImageUtils {
 
         Bitmap resized = resizeBitmap(original, MAX_DIMENSION);
 
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        // Pre-size for 1024px JPEG: avoids repeated reallocation from 32-byte default
+        // 1024px JPEG @ 80% quality: ~150-300KB compressed
+        // Base64 expansion adds ~33%: ~200-400KB total
+        // 512KB initial capacity eliminates reallocations for most images
+        ByteArrayOutputStream baos = new ByteArrayOutputStream(512 * 1024);
         resized.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, baos);
 
         if (original != resized) {
             original.recycle();
         }
         resized.recycle();
+
+        // Safety check: prevent OOM from unexpectedly large images
+        if (baos.size() > 5 * 1024 * 1024) {
+            throw new IOException("Image too large for API upload (" + (baos.size() / 1024) + " KB)");
+        }
 
         byte[] bytes = baos.toByteArray();
         return Base64.encodeToString(bytes, Base64.NO_WRAP);
