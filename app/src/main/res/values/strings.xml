@@ -2,7 +2,7 @@
     <string name="app_name">LeafIQ</string>
 
     <!-- Navigation -->
-    <string name="nav_library">Library</string>
+    <string name="nav_library">My Garden</string>
     <string name="nav_camera">Camera</string>
     <string name="nav_settings">Settings</string>
 

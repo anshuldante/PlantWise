@@ -1,6 +1,7 @@
 package com.leafiq.app;
 
 import android.content.Intent;
+import android.graphics.drawable.BitmapDrawable;
 import android.os.Bundle;
 import android.view.GestureDetector;
 import android.view.Menu;
@@ -27,6 +28,7 @@ import com.leafiq.app.ui.diagnosis.QuickDiagnosisActivity;
 import com.leafiq.app.ui.library.LibraryFragment;
 import com.leafiq.app.ui.settings.SettingsFragment;
 import com.leafiq.app.ui.timeline.TimelineFragment;
+import com.leafiq.app.util.EmojiDrawableFactory;
 import com.leafiq.app.util.KeystoreHelper;
 import com.leafiq.app.util.WindowInsetsHelper;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
@@ -105,6 +107,14 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void setupBottomNavigation() {
+        // Set potted plant emoji icon for My Garden tab (per UX-04)
+        BitmapDrawable emojiIcon = EmojiDrawableFactory.createEmojiDrawable(this, "\uD83E\uDEB4", 24);
+        MenuItem gardenItem = bottomNav.getMenu().findItem(R.id.nav_library);
+        gardenItem.setIcon(emojiIcon);
+
+        // Disable icon tinting to preserve emoji colors (affects all tabs)
+        bottomNav.setItemIconTintList(null);
+
         bottomNav.setOnItemSelectedListener(item -> {
             int itemId = item.getItemId();
             if (itemId == R.id.nav_library) {
