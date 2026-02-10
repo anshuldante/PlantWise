@@ -53,6 +53,18 @@ public class CareReminderReceiverTest {
         assertThat(CareReminderReceiver.ACTION_SNOOZE).isEqualTo("com.leafiq.app.ACTION_CARE_SNOOZE");
     }
 
+    @Test
+    public void actionNotificationDismissed_isCorrectValue() {
+        assertThat(CareReminderReceiver.ACTION_NOTIFICATION_DISMISSED)
+                .isEqualTo("com.leafiq.app.ACTION_NOTIFICATION_DISMISSED");
+    }
+
+    @Test
+    public void actionMarkAllDone_isCorrectValue() {
+        assertThat(CareReminderReceiver.ACTION_MARK_ALL_DONE)
+                .isEqualTo("com.leafiq.app.ACTION_MARK_ALL_DONE");
+    }
+
     // ==================== Snooze calculation tests ====================
 
     @Test
