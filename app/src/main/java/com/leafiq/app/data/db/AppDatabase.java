@@ -1,10 +1,14 @@
 package com.leafiq.app.data.db;
 
 import android.content.Context;
+import android.util.Log;
 
+import androidx.annotation.NonNull;
 import androidx.room.Database;
 import androidx.room.Room;
 import androidx.room.RoomDatabase;
+import androidx.room.migration.Migration;
+import androidx.sqlite.db.SupportSQLiteDatabase;
 
 import com.leafiq.app.data.entity.Analysis;
 import com.leafiq.app.data.entity.CareCompletion;
@@ -12,8 +16,16 @@ import com.leafiq.app.data.entity.CareItem;
 import com.leafiq.app.data.entity.CareSchedule;
 import com.leafiq.app.data.entity.Plant;
 
-@Database(entities = {Plant.class, Analysis.class, CareItem.class, CareSchedule.class, CareCompletion.class}, version = 2, exportSchema = false)
+@Database(entities = {Plant.class, Analysis.class, CareItem.class, CareSchedule.class, CareCompletion.class}, version = 2, exportSchema = true)
 public abstract class AppDatabase extends RoomDatabase {
+
+    static final Migration MIGRATION_1_2 = new Migration(1, 2) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase database) {
+            // No-op identity migration — establishes migration infrastructure
+            Log.i("AppDatabase", "Migration 1->2: no-op migration completed successfully");
+        }
+    };
 
     private static volatile AppDatabase INSTANCE;
 
@@ -32,7 +44,14 @@ public abstract class AppDatabase extends RoomDatabase {
                             AppDatabase.class,
                             "leafiq_database"
                     )
-                    .fallbackToDestructiveMigration()
+                    .addMigrations(MIGRATION_1_2)
+                    .addCallback(new Callback() {
+                        @Override
+                        public void onOpen(@NonNull SupportSQLiteDatabase db) {
+                            super.onOpen(db);
+                            Log.i("AppDatabase", "Database opened at version " + db.getVersion());
+                        }
+                    })
                     .build();
                 }
             }
