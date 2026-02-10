@@ -186,4 +186,30 @@ public class ImageUtilsTest {
 
         assertThat(jpegQuality).isEqualTo(80);
     }
+
+    // ==================== High-res thumbnail generation tests ====================
+
+    @Test
+    public void generateHighResThumbnailFromFile_nullPath_returnsNull() {
+        Context mockContext = mock(Context.class);
+        when(mockContext.getFilesDir()).thenReturn(tempFolder.getRoot());
+
+        String result = ImageUtils.generateHighResThumbnailFromFile(mockContext, null, "plant1");
+
+        assertThat(result).isNull();
+    }
+
+    @Test
+    public void generateHighResThumbnailFromFile_nonExistentFile_returnsNull() {
+        Context mockContext = mock(Context.class);
+        when(mockContext.getFilesDir()).thenReturn(tempFolder.getRoot());
+
+        String result = ImageUtils.generateHighResThumbnailFromFile(
+                mockContext,
+                "/nonexistent/path/to/file.jpg",
+                "plant1"
+        );
+
+        assertThat(result).isNull();
+    }
 }
