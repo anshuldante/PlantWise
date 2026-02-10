@@ -13,6 +13,7 @@ import com.leafiq.app.data.entity.CareItem;
 import com.leafiq.app.data.entity.CareSchedule;
 import com.leafiq.app.data.entity.Plant;
 import com.leafiq.app.data.model.AnalysisWithPlant;
+import com.leafiq.app.data.model.CareCompletionWithPlantInfo;
 
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -235,6 +236,19 @@ public class PlantRepository {
      */
     public CareCompletion getLastCompletionForScheduleSync(String scheduleId) {
         return careCompletionDao.getLastCompletionForSchedule(scheduleId);
+    }
+
+    /**
+     * Synchronously gets recent completions with plant information.
+     * MUST be called from background thread.
+     *
+     * @param afterTimestamp Returns completions where completedAt >= afterTimestamp
+     * @param limit Maximum number of completions to return
+     */
+    public List<CareCompletionWithPlantInfo> getRecentCompletionsSync(long afterTimestamp, int limit) {
+        List<CareCompletionWithPlantInfo> completions = careCompletionDao.getRecentCompletions(afterTimestamp, limit);
+        android.util.Log.i("CareSystem", "Loaded " + completions.size() + " recent completions");
+        return completions;
     }
 
     // ==================== Write Methods ====================
