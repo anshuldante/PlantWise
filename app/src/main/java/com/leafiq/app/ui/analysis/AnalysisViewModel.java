@@ -330,11 +330,15 @@ public class AnalysisViewModel extends AndroidViewModel {
                 plantId = UUID.randomUUID().toString();
             }
 
-            // Save thumbnail and photo
+            // Save thumbnails (3 sizes) and photo
             String thumbnailPath = null;
+            String mediumThumbnailPath = null;
+            String highResThumbnailPath = null;
             String photoPath = null;
             try {
                 thumbnailPath = imagePreprocessor.saveThumbnail(imageUri, plantId);
+                mediumThumbnailPath = imagePreprocessor.saveMediumThumbnail(imageUri, plantId);
+                highResThumbnailPath = imagePreprocessor.saveHighResThumbnail(imageUri, plantId);
                 photoPath = imagePreprocessor.savePhoto(imageUri, plantId);
             } catch (IOException e) {
                 // If image save fails, continue without thumbnail/photo
@@ -369,6 +373,8 @@ public class AnalysisViewModel extends AndroidViewModel {
                 plant.scientificName = scientificName;
                 plant.latestHealthScore = healthScore;
                 plant.thumbnailPath = thumbnailPath;
+                plant.mediumThumbnailPath = mediumThumbnailPath;
+                plant.highResThumbnailPath = highResThumbnailPath;
                 plant.createdAt = now;
                 plant.updatedAt = now;
 
@@ -398,8 +404,11 @@ public class AnalysisViewModel extends AndroidViewModel {
                         });
             } else {
                 // EXISTING PLANT: Update plant and add new analysis
+                final String finalMediumThumbnailPath = mediumThumbnailPath;
+                final String finalHighResThumbnailPath = highResThumbnailPath;
                 plantRepository.addAnalysisToExistingPlant(finalPlantId, commonName, scientificName,
-                        healthScore, thumbnailPath, analysis, careItems,
+                        healthScore, thumbnailPath, finalMediumThumbnailPath, finalHighResThumbnailPath,
+                        analysis, careItems,
                         new PlantRepository.RepositoryCallback<Void>() {
                             @Override
                             public void onSuccess(Void unused) {

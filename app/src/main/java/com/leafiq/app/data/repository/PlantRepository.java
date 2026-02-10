@@ -337,12 +337,15 @@ public class PlantRepository {
      * @param scientificName New scientific name from AI analysis
      * @param healthScore New health score from AI analysis
      * @param thumbnailPath New thumbnail path (if null, existing thumbnail is preserved)
+     * @param mediumThumbnailPath New medium thumbnail path (if null, existing is preserved)
+     * @param highResThumbnailPath New high-res thumbnail path (if null, existing is preserved)
      * @param analysis New Analysis to insert
      * @param careItems New CareItems to insert
      * @param callback Callback for success/error
      */
     public void addAnalysisToExistingPlant(String plantId, String commonName, String scientificName,
                                           int healthScore, String thumbnailPath,
+                                          String mediumThumbnailPath, String highResThumbnailPath,
                                           Analysis analysis, List<CareItem> careItems,
                                           RepositoryCallback<Void> callback) {
         ioExecutor.execute(() -> {
@@ -360,9 +363,15 @@ public class PlantRepository {
                 existingPlant.latestHealthScore = healthScore;
                 existingPlant.updatedAt = System.currentTimeMillis();
 
-                // Update thumbnail only if new one provided
+                // Update thumbnails only if new ones provided
                 if (thumbnailPath != null) {
                     existingPlant.thumbnailPath = thumbnailPath;
+                }
+                if (mediumThumbnailPath != null) {
+                    existingPlant.mediumThumbnailPath = mediumThumbnailPath;
+                }
+                if (highResThumbnailPath != null) {
+                    existingPlant.highResThumbnailPath = highResThumbnailPath;
                 }
 
                 // PRESERVE user-set fields:

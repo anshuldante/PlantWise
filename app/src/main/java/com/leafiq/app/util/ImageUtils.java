@@ -110,6 +110,78 @@ public class ImageUtils {
         return dest.getAbsolutePath();
     }
 
+    /**
+     * Create a medium-resolution thumbnail (300px) for library grid display.
+     */
+    public static String saveMediumThumbnail(Context context, Uri sourceUri, String plantId)
+            throws IOException {
+        return saveThumbnailAtSize(context, sourceUri, plantId, 300, "_medium");
+    }
+
+    /**
+     * Create a high-resolution thumbnail (800px) for plant detail page display.
+     */
+    public static String saveHighResThumbnail(Context context, Uri sourceUri, String plantId)
+            throws IOException {
+        return saveThumbnailAtSize(context, sourceUri, plantId, 800, "_high");
+    }
+
+    /**
+     * Generate a high-resolution thumbnail from an existing file path (for lazy migration).
+     * Used when opening plant detail for plants that don't yet have a high-res thumbnail.
+     *
+     * @param context   Application context
+     * @param filePath  Path to the original photo file
+     * @param plantId   Plant identifier for filename
+     * @return Path to the generated high-res thumbnail, or null if generation fails
+     */
+    public static String generateHighResThumbnailFromFile(Context context, String filePath, String plantId) {
+        try {
+            File dir = new File(context.getFilesDir(), "thumbnails");
+            if (!dir.exists()) dir.mkdirs();
+
+            Bitmap original = BitmapFactory.decodeFile(filePath);
+            if (original == null) return null;
+
+            Bitmap resized = resizeBitmap(original, 800);
+            String filename = plantId + "_high.jpg";
+            File dest = new File(dir, filename);
+
+            try (FileOutputStream out = new FileOutputStream(dest)) {
+                resized.compress(Bitmap.CompressFormat.JPEG, 85, out);
+            }
+
+            if (original != resized) original.recycle();
+            resized.recycle();
+
+            return dest.getAbsolutePath();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static String saveThumbnailAtSize(Context context, Uri sourceUri,
+            String plantId, int size, String suffix) throws IOException {
+        File dir = new File(context.getFilesDir(), "thumbnails");
+        if (!dir.exists()) dir.mkdirs();
+
+        Bitmap original = getBitmapFromUri(context, sourceUri);
+        if (original == null) throw new IOException("Failed to decode image");
+
+        Bitmap resized = resizeBitmap(original, size);
+        String filename = plantId + suffix + ".jpg";
+        File dest = new File(dir, filename);
+
+        try (FileOutputStream out = new FileOutputStream(dest)) {
+            resized.compress(Bitmap.CompressFormat.JPEG, 85, out);
+        }
+
+        if (original != resized) original.recycle();
+        resized.recycle();
+
+        return dest.getAbsolutePath();
+    }
+
     private static Bitmap getBitmapFromUri(Context context, Uri uri) throws IOException {
         try (InputStream input = context.getContentResolver().openInputStream(uri)) {
             return BitmapFactory.decodeStream(input);

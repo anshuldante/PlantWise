@@ -510,7 +510,7 @@ public class PlantRepositoryTest {
 
         AtomicBoolean successCalled = new AtomicBoolean(false);
         repository.addAnalysisToExistingPlant("p1", "New Name", "New Scientific", 9,
-                "/new/thumb.jpg", analysis, careItems,
+                "/new/thumb.jpg", null, null, analysis, careItems,
                 new PlantRepository.RepositoryCallback<Void>() {
                     @Override public void onSuccess(Void result) { successCalled.set(true); }
                     @Override public void onError(Exception e) {}
@@ -538,7 +538,7 @@ public class PlantRepositoryTest {
         analysis.plantId = "p1";
 
         repository.addAnalysisToExistingPlant("p1", "Name", "Sci", 8,
-                "/thumb.jpg", analysis, new ArrayList<>(),
+                "/thumb.jpg", null, null, analysis, new ArrayList<>(),
                 new PlantRepository.RepositoryCallback<Void>() {
                     @Override public void onSuccess(Void result) {}
                     @Override public void onError(Exception e) {}
@@ -564,7 +564,7 @@ public class PlantRepositoryTest {
         List<CareItem> careItems = Arrays.asList(care1, care2);
 
         repository.addAnalysisToExistingPlant("p1", "Name", "Sci", 7,
-                "/thumb.jpg", analysis, careItems,
+                "/thumb.jpg", null, null, analysis, careItems,
                 new PlantRepository.RepositoryCallback<Void>() {
                     @Override public void onSuccess(Void result) {}
                     @Override public void onError(Exception e) {}
@@ -586,7 +586,7 @@ public class PlantRepositoryTest {
         analysis.plantId = "p1";
 
         repository.addAnalysisToExistingPlant("p1", "Name", "Sci", 7,
-                null, analysis, new ArrayList<>(),
+                null, null, null, analysis, new ArrayList<>(),
                 new PlantRepository.RepositoryCallback<Void>() {
                     @Override public void onSuccess(Void result) {}
                     @Override public void onError(Exception e) {}
@@ -606,7 +606,7 @@ public class PlantRepositoryTest {
 
         AtomicReference<Exception> capturedError = new AtomicReference<>();
         repository.addAnalysisToExistingPlant("nonexistent", "Name", "Sci", 7,
-                "/thumb.jpg", analysis, new ArrayList<>(),
+                "/thumb.jpg", null, null, analysis, new ArrayList<>(),
                 new PlantRepository.RepositoryCallback<Void>() {
                     @Override public void onSuccess(Void result) {}
                     @Override public void onError(Exception e) { capturedError.set(e); }
@@ -630,7 +630,7 @@ public class PlantRepositoryTest {
         analysis.plantId = "p1";
 
         repository.addAnalysisToExistingPlant("p1", "Name", "Sci", 7,
-                "/thumb.jpg", analysis, new ArrayList<>(),
+                "/thumb.jpg", null, null, analysis, new ArrayList<>(),
                 new PlantRepository.RepositoryCallback<Void>() {
                     @Override public void onSuccess(Void result) {}
                     @Override public void onError(Exception e) {}
@@ -650,7 +650,7 @@ public class PlantRepositoryTest {
 
         AtomicBoolean successCalled = new AtomicBoolean(false);
         repository.addAnalysisToExistingPlant("p1", "Name", "Sci", 7,
-                "/thumb.jpg", analysis, new ArrayList<>(),
+                "/thumb.jpg", null, null, analysis, new ArrayList<>(),
                 new PlantRepository.RepositoryCallback<Void>() {
                     @Override public void onSuccess(Void result) { successCalled.set(true); }
                     @Override public void onError(Exception e) {}
@@ -672,7 +672,7 @@ public class PlantRepositoryTest {
 
         AtomicReference<Exception> capturedError = new AtomicReference<>();
         repository.addAnalysisToExistingPlant("p1", "Name", "Sci", 7,
-                "/thumb.jpg", analysis, new ArrayList<>(),
+                "/thumb.jpg", null, null, analysis, new ArrayList<>(),
                 new PlantRepository.RepositoryCallback<Void>() {
                     @Override public void onSuccess(Void result) {}
                     @Override public void onError(Exception e) { capturedError.set(e); }

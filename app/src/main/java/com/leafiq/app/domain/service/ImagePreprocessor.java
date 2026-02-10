@@ -69,6 +69,20 @@ public class ImagePreprocessor {
     }
 
     /**
+     * Create a medium-resolution thumbnail (300px) for library grid view.
+     */
+    public String saveMediumThumbnail(Uri sourceUri, String plantId) throws IOException {
+        return ImageUtils.saveMediumThumbnail(context, sourceUri, plantId);
+    }
+
+    /**
+     * Create a high-resolution thumbnail (800px) for detail page.
+     */
+    public String saveHighResThumbnail(Uri sourceUri, String plantId) throws IOException {
+        return ImageUtils.saveHighResThumbnail(context, sourceUri, plantId);
+    }
+
+    /**
      * Returns the cache directory used for any temporary image processing files.
      * Used by callers to clean up temp files on error.
      *
