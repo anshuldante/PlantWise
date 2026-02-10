@@ -10,8 +10,10 @@ import com.leafiq.app.care.NotificationHelper;
 import com.leafiq.app.data.db.AppDatabase;
 import com.leafiq.app.data.repository.PlantRepository;
 import com.leafiq.app.util.AppExecutors;
+import com.leafiq.app.util.FileCleanupUtils;
 import com.leafiq.app.util.KeystoreHelper;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
@@ -50,6 +52,14 @@ public class LeafIQApplication extends Application {
 
         // Initialize thread pools
         appExecutors = new AppExecutors();
+
+        // Background cleanup sweep for orphaned temp files (runs regardless of DB state)
+        appExecutors.io().execute(() -> {
+            File thumbnailDir = new File(getFilesDir(), "thumbnails");
+            FileCleanupUtils.cleanupOldFiles(thumbnailDir, FileCleanupUtils.ONE_HOUR_MS);
+            File photoDir = new File(getFilesDir(), "plant_photos");
+            FileCleanupUtils.cleanupOldFiles(photoDir, FileCleanupUtils.ONE_HOUR_MS);
+        });
 
         // Initialize shared HTTP client for AI providers
         httpClient = new OkHttpClient.Builder()
