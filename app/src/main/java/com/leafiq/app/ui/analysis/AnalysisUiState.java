@@ -30,6 +30,7 @@ public class AnalysisUiState {
     private final PlantAnalysisResult result;
     private final String errorMessage;
     private final String visionUnsupportedProvider;
+    private final String loadingMessage;
 
     /**
      * Private constructor - use factory methods instead.
@@ -37,11 +38,13 @@ public class AnalysisUiState {
     private AnalysisUiState(State state,
                            PlantAnalysisResult result,
                            String errorMessage,
-                           String visionUnsupportedProvider) {
+                           String visionUnsupportedProvider,
+                           String loadingMessage) {
         this.state = state;
         this.result = result;
         this.errorMessage = errorMessage;
         this.visionUnsupportedProvider = visionUnsupportedProvider;
+        this.loadingMessage = loadingMessage;
     }
 
     // ==================== Factory Methods ====================
@@ -51,7 +54,7 @@ public class AnalysisUiState {
      * Used as initial state before any analysis.
      */
     public static AnalysisUiState idle() {
-        return new AnalysisUiState(State.IDLE, null, null, null);
+        return new AnalysisUiState(State.IDLE, null, null, null, null);
     }
 
     /**
@@ -59,7 +62,17 @@ public class AnalysisUiState {
      * Used while analysis is in progress.
      */
     public static AnalysisUiState loading() {
-        return new AnalysisUiState(State.LOADING, null, null, null);
+        return new AnalysisUiState(State.LOADING, null, null, null, null);
+    }
+
+    /**
+     * Creates a LOADING state with a custom progress message.
+     * Used for timeout warnings during long-running analysis.
+     *
+     * @param message Progress message to display (e.g., "Analysis is taking longer than usual...")
+     */
+    public static AnalysisUiState loadingWithMessage(String message) {
+        return new AnalysisUiState(State.LOADING, null, null, null, message);
     }
 
     /**
@@ -68,7 +81,7 @@ public class AnalysisUiState {
      * @param result The analysis result to display
      */
     public static AnalysisUiState success(PlantAnalysisResult result) {
-        return new AnalysisUiState(State.SUCCESS, result, null, null);
+        return new AnalysisUiState(State.SUCCESS, result, null, null, null);
     }
 
     /**
@@ -77,7 +90,7 @@ public class AnalysisUiState {
      * @param message Human-readable error message
      */
     public static AnalysisUiState error(String message) {
-        return new AnalysisUiState(State.ERROR, null, message, null);
+        return new AnalysisUiState(State.ERROR, null, message, null, null);
     }
 
     /**
@@ -88,7 +101,7 @@ public class AnalysisUiState {
      */
     public static AnalysisUiState visionNotSupported(String providerName) {
         String message = providerName + " is text-only. Switch to Claude, ChatGPT, or Gemini in Settings for image analysis.";
-        return new AnalysisUiState(State.ERROR, null, message, providerName);
+        return new AnalysisUiState(State.ERROR, null, message, providerName, null);
     }
 
     // ==================== Getters ====================
@@ -149,5 +162,13 @@ public class AnalysisUiState {
      */
     public boolean isVisionUnsupported() {
         return visionUnsupportedProvider != null;
+    }
+
+    /**
+     * Gets the loading progress message (only non-null when state is LOADING with custom message).
+     * Returns null for default loading state (show standard progress indicator).
+     */
+    public String getLoadingMessage() {
+        return loadingMessage;
     }
 }
