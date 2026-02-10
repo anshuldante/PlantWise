@@ -33,11 +33,13 @@ public class CareOverviewViewModelTest {
     @Test
     public void careCompletionItem_holdsAllFields() {
         CareOverviewViewModel.CareCompletionItem item = new CareOverviewViewModel.CareCompletionItem(
-                "sched-1", "water", "My Pothos", 1000000L);
+                "sched-1", "water", "Watered My Pothos", "2 days ago", "plant-1", 1000000L);
 
         assertThat(item.scheduleId).isEqualTo("sched-1");
         assertThat(item.careType).isEqualTo("water");
-        assertThat(item.plantDisplayName).isEqualTo("My Pothos");
+        assertThat(item.displayText).isEqualTo("Watered My Pothos");
+        assertThat(item.relativeTime).isEqualTo("2 days ago");
+        assertThat(item.plantId).isEqualTo("plant-1");
         assertThat(item.completedAt).isEqualTo(1000000L);
     }
 
