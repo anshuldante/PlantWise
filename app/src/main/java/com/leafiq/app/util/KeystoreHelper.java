@@ -64,6 +64,15 @@ public class KeystoreHelper {
         }
     }
 
+    /**
+     * Package-private test constructor for unit testing encryption failure behavior.
+     * Allows setting prefs and encryptionHealthy fields directly without Android dependencies.
+     */
+    KeystoreHelper(SharedPreferences prefs, boolean encryptionHealthy) {
+        this.prefs = prefs;
+        this.encryptionHealthy = encryptionHealthy;
+    }
+
     public boolean isEncryptionHealthy() {
         return encryptionHealthy;
     }
