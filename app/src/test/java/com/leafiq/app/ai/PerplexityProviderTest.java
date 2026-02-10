@@ -39,31 +39,31 @@ public class PerplexityProviderTest {
 
     @Test
     public void supportsVision_returnsFalse() {
-        PerplexityProvider provider = new PerplexityProvider("pplx-test-key");
+        PerplexityProvider provider = new PerplexityProvider("pplx-test-key", new OkHttpClient());
         assertThat(provider.supportsVision()).isFalse();
     }
 
     @Test
     public void isConfigured_withApiKey_returnsTrue() {
-        PerplexityProvider provider = new PerplexityProvider("pplx-test-key");
+        PerplexityProvider provider = new PerplexityProvider("pplx-test-key", new OkHttpClient());
         assertThat(provider.isConfigured()).isTrue();
     }
 
     @Test
     public void isConfigured_withNullApiKey_returnsFalse() {
-        PerplexityProvider provider = new PerplexityProvider(null);
+        PerplexityProvider provider = new PerplexityProvider(null, new OkHttpClient());
         assertThat(provider.isConfigured()).isFalse();
     }
 
     @Test
     public void isConfigured_withEmptyApiKey_returnsFalse() {
-        PerplexityProvider provider = new PerplexityProvider("");
+        PerplexityProvider provider = new PerplexityProvider("", new OkHttpClient());
         assertThat(provider.isConfigured()).isFalse();
     }
 
     @Test
     public void getDisplayName_returnsPerplexity() {
-        PerplexityProvider provider = new PerplexityProvider("pplx-test-key");
+        PerplexityProvider provider = new PerplexityProvider("pplx-test-key", new OkHttpClient());
         assertThat(provider.getDisplayName()).isEqualTo("Perplexity");
     }
 

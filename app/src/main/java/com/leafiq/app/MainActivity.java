@@ -20,6 +20,8 @@ import androidx.fragment.app.Fragment;
 import com.leafiq.app.ai.AIProvider;
 import com.leafiq.app.ai.AIProviderFactory;
 import com.leafiq.app.ui.camera.CameraActivity;
+
+import okhttp3.OkHttpClient;
 import com.leafiq.app.ui.care.CareOverviewActivity;
 import com.leafiq.app.ui.diagnosis.QuickDiagnosisActivity;
 import com.leafiq.app.ui.library.LibraryFragment;
@@ -163,7 +165,8 @@ public class MainActivity extends AppCompatActivity {
         }
 
         try {
-            AIProvider provider = AIProviderFactory.create(providerName, apiKey);
+            OkHttpClient client = ((LeafIQApplication) getApplication()).getHttpClient();
+            AIProvider provider = AIProviderFactory.create(providerName, apiKey, client);
             if (!provider.supportsVision()) {
                 Toast.makeText(this, R.string.quick_diagnosis_provider_required, Toast.LENGTH_LONG).show();
                 return;

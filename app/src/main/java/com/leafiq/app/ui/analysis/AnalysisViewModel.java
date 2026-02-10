@@ -26,6 +26,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import okhttp3.OkHttpClient;
+
 /**
  * ViewModel for the analysis screen.
  * Manages UI state and delegates business logic to domain layer.
@@ -107,8 +109,11 @@ public class AnalysisViewModel extends AndroidViewModel {
         String providerName = keystoreHelper.getProvider();
         String apiKey = keystoreHelper.getApiKey();
 
+        // Get shared HTTP client
+        OkHttpClient client = ((LeafIQApplication) getApplication()).getHttpClient();
+
         // Create provider
-        AIProvider provider = AIProviderFactory.create(providerName, apiKey);
+        AIProvider provider = AIProviderFactory.create(providerName, apiKey, client);
 
         // Delegate to use case
         analyzePlantUseCase.execute(imageUri, plantId, provider, new AnalyzePlantUseCase.Callback() {
@@ -146,8 +151,11 @@ public class AnalysisViewModel extends AndroidViewModel {
         String providerName = keystoreHelper.getProvider();
         String apiKey = keystoreHelper.getApiKey();
 
+        // Get shared HTTP client
+        OkHttpClient client = ((LeafIQApplication) getApplication()).getHttpClient();
+
         // Create provider
-        AIProvider provider = AIProviderFactory.create(providerName, apiKey);
+        AIProvider provider = AIProviderFactory.create(providerName, apiKey, client);
 
         // Delegate to use case with corrections
         analyzePlantUseCase.executeWithCorrections(imageUri, plantId, correctedName, additionalContext, provider,

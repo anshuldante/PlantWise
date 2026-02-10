@@ -39,37 +39,37 @@ public class ClaudeProviderTest {
 
     @Test
     public void isConfigured_withApiKey_returnsTrue() {
-        ClaudeProvider provider = new ClaudeProvider("sk-test-key-123");
+        ClaudeProvider provider = new ClaudeProvider("sk-test-key-123", new OkHttpClient());
         assertThat(provider.isConfigured()).isTrue();
     }
 
     @Test
     public void isConfigured_withNullApiKey_returnsFalse() {
-        ClaudeProvider provider = new ClaudeProvider(null);
+        ClaudeProvider provider = new ClaudeProvider(null, new OkHttpClient());
         assertThat(provider.isConfigured()).isFalse();
     }
 
     @Test
     public void isConfigured_withEmptyApiKey_returnsFalse() {
-        ClaudeProvider provider = new ClaudeProvider("");
+        ClaudeProvider provider = new ClaudeProvider("", new OkHttpClient());
         assertThat(provider.isConfigured()).isFalse();
     }
 
     @Test
     public void isConfigured_withWhitespaceApiKey_returnsFalse() {
-        ClaudeProvider provider = new ClaudeProvider("   ");
+        ClaudeProvider provider = new ClaudeProvider("   ", new OkHttpClient());
         assertThat(provider.isConfigured()).isFalse();
     }
 
     @Test
     public void getDisplayName_returnsClaude() {
-        ClaudeProvider provider = new ClaudeProvider("sk-test");
+        ClaudeProvider provider = new ClaudeProvider("sk-test", new OkHttpClient());
         assertThat(provider.getDisplayName()).isEqualTo("Claude (Anthropic)");
     }
 
     @Test
     public void supportsVision_returnsTrue() {
-        ClaudeProvider provider = new ClaudeProvider("sk-test");
+        ClaudeProvider provider = new ClaudeProvider("sk-test", new OkHttpClient());
         assertThat(provider.supportsVision()).isTrue();
     }
 

@@ -8,7 +8,6 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.IOException;
-import java.util.concurrent.TimeUnit;
 
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -22,13 +21,10 @@ public class GeminiProvider implements AIProvider {
     private final String apiUrl;
     private final OkHttpClient client;
 
-    public GeminiProvider(String apiKey) {
+    public GeminiProvider(String apiKey, OkHttpClient client) {
         this.apiKey = apiKey;
         this.apiUrl = DEFAULT_API_URL;
-        this.client = new OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
-            .build();
+        this.client = client;
     }
 
     // Package-private constructor for testing with MockWebServer
