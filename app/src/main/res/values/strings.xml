@@ -130,4 +130,10 @@
     <!-- Encryption errors -->
     <string name="secure_storage_unavailable">Secure storage unavailable. Cannot save API keys.</string>
     <string name="secure_storage_issue_banner">Secure storage issue detected. Cannot save new API keys.</string>
+
+    <!-- Plant Detail Labels -->
+    <string name="nickname_label">Nickname (optional)</string>
+    <string name="nickname_helper">Give your plant a name</string>
+    <string name="location_label">Location (optional)</string>
+    <string name="location_helper">e.g., Living Room</string>
 </resources>
