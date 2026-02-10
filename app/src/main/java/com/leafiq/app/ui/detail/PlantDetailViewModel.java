@@ -83,4 +83,19 @@ public class PlantDetailViewModel extends AndroidViewModel {
             }
         }).start();
     }
+
+    /**
+     * Get the photo path from the most recent analysis for lazy thumbnail regeneration.
+     */
+    public void getLatestPhotoPath(String plantId, java.util.function.Consumer<String> callback) {
+        LeafIQApplication app = (LeafIQApplication) getApplication();
+        app.getAppExecutors().io().execute(() -> {
+            Analysis latest = repository.getLatestAnalysisSync(plantId);
+            if (latest != null && latest.photoPath != null) {
+                callback.accept(latest.photoPath);
+            } else {
+                callback.accept(null);
+            }
+        });
+    }
 }

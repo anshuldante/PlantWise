@@ -45,6 +45,8 @@ public class PlantCardAdapter extends ListAdapter<Plant, PlantCardAdapter.PlantV
             public boolean areContentsTheSame(@NonNull Plant oldItem, @NonNull Plant newItem) {
                 return Objects.equals(oldItem.commonName, newItem.commonName)
                     && Objects.equals(oldItem.thumbnailPath, newItem.thumbnailPath)
+                    && Objects.equals(oldItem.mediumThumbnailPath, newItem.mediumThumbnailPath)
+                    && Objects.equals(oldItem.highResThumbnailPath, newItem.highResThumbnailPath)
                     && Objects.equals(oldItem.nickname, newItem.nickname)
                     && Objects.equals(oldItem.location, newItem.location)
                     && oldItem.latestHealthScore == newItem.latestHealthScore
@@ -85,8 +87,13 @@ public class PlantCardAdapter extends ListAdapter<Plant, PlantCardAdapter.PlantV
         }
 
         void bind(Plant plant, OnPlantClickListener clickListener) {
-            // Load thumbnail
-            if (plant.thumbnailPath != null && !plant.thumbnailPath.isEmpty()) {
+            // Load thumbnail — prefer medium res (300px) for sharper grid display
+            if (plant.mediumThumbnailPath != null && !plant.mediumThumbnailPath.isEmpty()) {
+                Glide.with(itemView.getContext())
+                    .load(new File(plant.mediumThumbnailPath))
+                    .centerCrop()
+                    .into(thumbnail);
+            } else if (plant.thumbnailPath != null && !plant.thumbnailPath.isEmpty()) {
                 Glide.with(itemView.getContext())
                     .load(new File(plant.thumbnailPath))
                     .centerCrop()

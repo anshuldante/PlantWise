@@ -28,6 +28,7 @@ import com.leafiq.app.ui.analysis.AnalysisActivity;
 import com.leafiq.app.ui.camera.CameraActivity;
 import com.leafiq.app.ui.timeline.AnalysisDetailActivity;
 import com.leafiq.app.ui.timeline.SparklineView;
+import com.leafiq.app.util.ImageUtils;
 import com.leafiq.app.util.WindowInsetsHelper;
 import com.bumptech.glide.Glide;
 import com.google.android.material.appbar.CollapsingToolbarLayout;
@@ -142,6 +143,29 @@ public class PlantDetailActivity extends AppCompatActivity {
         setupInputListeners();
         setupReminderToggle();
         setupCareHistoryRecycler();
+
+        // Tap image to open full-screen viewer
+        plantImage.setOnClickListener(v -> {
+            if (currentPlant != null) {
+                // Prefer original photo, fall back to high-res thumbnail
+                viewModel.getLatestPhotoPath(currentPlant.id, photoPath -> {
+                    runOnUiThread(() -> {
+                        String imagePath = photoPath;
+                        if (imagePath == null && currentPlant.highResThumbnailPath != null) {
+                            imagePath = currentPlant.highResThumbnailPath;
+                        }
+                        if (imagePath == null && currentPlant.thumbnailPath != null) {
+                            imagePath = currentPlant.thumbnailPath;
+                        }
+                        if (imagePath != null) {
+                            Intent intent = new Intent(PlantDetailActivity.this, ImageViewerActivity.class);
+                            intent.putExtra(ImageViewerActivity.EXTRA_IMAGE_PATH, imagePath);
+                            startActivity(intent);
+                        }
+                    });
+                });
+            }
+        });
 
         // Apply bottom insets to scrollable content so it's visible above system nav
         androidx.core.widget.NestedScrollView scrollContent = findViewById(R.id.scroll_content);
@@ -395,10 +419,33 @@ public class PlantDetailActivity extends AppCompatActivity {
         setHealthScoreColor(plant.latestHealthScore);
 
         if (plant.thumbnailPath != null && !plant.thumbnailPath.isEmpty()) {
-            Glide.with(this)
-                .load(new File(plant.thumbnailPath))
-                .centerCrop()
-                .into(plantImage);
+            File lowRes = new File(plant.thumbnailPath);
+
+            if (plant.highResThumbnailPath != null && !plant.highResThumbnailPath.isEmpty()) {
+                File highRes = new File(plant.highResThumbnailPath);
+                if (highRes.exists()) {
+                    // Progressive load: low-res first, then high-res
+                    Glide.with(this)
+                        .load(highRes)
+                        .thumbnail(Glide.with(this).load(lowRes))
+                        .centerCrop()
+                        .into(plantImage);
+                } else {
+                    // High-res path set but file missing — fall back and regenerate
+                    Glide.with(this)
+                        .load(lowRes)
+                        .centerCrop()
+                        .into(plantImage);
+                    regenerateHighResThumbnail(plant);
+                }
+            } else {
+                // No high-res path — show low-res and trigger lazy migration
+                Glide.with(this)
+                    .load(lowRes)
+                    .centerCrop()
+                    .into(plantImage);
+                regenerateHighResThumbnail(plant);
+            }
         }
 
         // Populate nickname and location inputs
@@ -421,6 +468,45 @@ public class PlantDetailActivity extends AppCompatActivity {
         }
         ((GradientDrawable) healthScore.getBackground()).setColor(
             ContextCompat.getColor(this, colorRes));
+    }
+
+    /**
+     * Lazy migration: generate high-res thumbnail for existing plants that only have 256px.
+     * Runs on background thread, updates UI when ready.
+     */
+    private void regenerateHighResThumbnail(Plant plant) {
+        // Find the original photo path from the latest analysis
+        viewModel.getLatestPhotoPath(plant.id, photoPath -> {
+            if (photoPath == null) return;
+
+            // Generate high-res on background thread
+            String highResPath = ImageUtils.generateHighResThumbnailFromFile(
+                getApplicationContext(), photoPath, plant.id);
+
+            if (highResPath != null) {
+                // Update plant record
+                plant.highResThumbnailPath = highResPath;
+                plant.updatedAt = System.currentTimeMillis();
+                viewModel.updatePlant(plant, new com.leafiq.app.data.repository.PlantRepository.RepositoryCallback<Void>() {
+                    @Override
+                    public void onSuccess(Void result) {
+                        // Swap to high-res in UI
+                        runOnUiThread(() -> {
+                            if (!isFinishing()) {
+                                Glide.with(PlantDetailActivity.this)
+                                    .load(new File(highResPath))
+                                    .centerCrop()
+                                    .into(plantImage);
+                            }
+                        });
+                    }
+                    @Override
+                    public void onError(Exception e) {
+                        // Silently fail — low-res thumbnail still visible
+                    }
+                });
+            }
+        });
     }
 
     private void showDeleteConfirmation() {

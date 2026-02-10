@@ -180,6 +180,14 @@ public class PlantRepository {
     }
 
     /**
+     * Synchronously gets the latest analysis for a plant.
+     * MUST be called from background thread.
+     */
+    public Analysis getLatestAnalysisSync(String plantId) {
+        return analysisDao.getLatestForPlantSync(plantId);
+    }
+
+    /**
      * Synchronously gets an analysis by ID.
      * MUST be called from background thread.
      */

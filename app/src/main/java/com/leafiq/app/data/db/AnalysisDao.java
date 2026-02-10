@@ -19,6 +19,9 @@ public interface AnalysisDao {
     @Query("SELECT * FROM analyses WHERE plant_id = :plantId ORDER BY created_at DESC LIMIT 5")
     List<Analysis> getRecentAnalysesSync(String plantId);
 
+    @Query("SELECT * FROM analyses WHERE plant_id = :plantId ORDER BY created_at DESC LIMIT 1")
+    Analysis getLatestForPlantSync(String plantId);
+
     @Query("SELECT * FROM analyses WHERE id = :id")
     Analysis getAnalysisById(String id);
 
