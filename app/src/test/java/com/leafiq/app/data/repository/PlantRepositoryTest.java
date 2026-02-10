@@ -12,7 +12,9 @@ import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 
 import com.leafiq.app.data.db.AnalysisDao;
+import com.leafiq.app.data.db.CareCompletionDao;
 import com.leafiq.app.data.db.CareItemDao;
+import com.leafiq.app.data.db.CareScheduleDao;
 import com.leafiq.app.data.db.PlantDao;
 import com.leafiq.app.data.entity.Analysis;
 import com.leafiq.app.data.entity.CareItem;
@@ -33,6 +35,8 @@ public class PlantRepositoryTest {
     private PlantDao mockPlantDao;
     private AnalysisDao mockAnalysisDao;
     private CareItemDao mockCareItemDao;
+    private CareScheduleDao mockCareScheduleDao;
+    private CareCompletionDao mockCareCompletionDao;
     private PlantRepository repository;
 
     @Before
@@ -40,8 +44,11 @@ public class PlantRepositoryTest {
         mockPlantDao = mock(PlantDao.class);
         mockAnalysisDao = mock(AnalysisDao.class);
         mockCareItemDao = mock(CareItemDao.class);
+        mockCareScheduleDao = mock(CareScheduleDao.class);
+        mockCareCompletionDao = mock(CareCompletionDao.class);
         // Synchronous executor for tests
-        repository = new PlantRepository(mockPlantDao, mockAnalysisDao, mockCareItemDao, Runnable::run);
+        repository = new PlantRepository(mockPlantDao, mockAnalysisDao, mockCareItemDao,
+                mockCareScheduleDao, mockCareCompletionDao, Runnable::run);
     }
 
     // ==================== deletePlant tests ====================
