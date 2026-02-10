@@ -23,6 +23,12 @@ public class Plant {
     @ColumnInfo(name = "thumbnail_path")
     public String thumbnailPath;
 
+    @ColumnInfo(name = "medium_thumbnail_path")
+    public String mediumThumbnailPath;
+
+    @ColumnInfo(name = "high_res_thumbnail_path")
+    public String highResThumbnailPath;
+
     @ColumnInfo(name = "latest_health_score")
     public int latestHealthScore;
 

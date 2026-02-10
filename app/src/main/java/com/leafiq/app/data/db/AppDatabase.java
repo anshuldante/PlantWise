@@ -16,7 +16,7 @@ import com.leafiq.app.data.entity.CareItem;
 import com.leafiq.app.data.entity.CareSchedule;
 import com.leafiq.app.data.entity.Plant;
 
-@Database(entities = {Plant.class, Analysis.class, CareItem.class, CareSchedule.class, CareCompletion.class}, version = 2, exportSchema = true)
+@Database(entities = {Plant.class, Analysis.class, CareItem.class, CareSchedule.class, CareCompletion.class}, version = 3, exportSchema = true)
 public abstract class AppDatabase extends RoomDatabase {
 
     static final Migration MIGRATION_1_2 = new Migration(1, 2) {
@@ -24,6 +24,15 @@ public abstract class AppDatabase extends RoomDatabase {
         public void migrate(@NonNull SupportSQLiteDatabase database) {
             // No-op identity migration — establishes migration infrastructure
             Log.i("AppDatabase", "Migration 1->2: no-op migration completed successfully");
+        }
+    };
+
+    static final Migration MIGRATION_2_3 = new Migration(2, 3) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase database) {
+            database.execSQL("ALTER TABLE plants ADD COLUMN medium_thumbnail_path TEXT");
+            database.execSQL("ALTER TABLE plants ADD COLUMN high_res_thumbnail_path TEXT");
+            Log.i("AppDatabase", "Migration 2->3: added medium_thumbnail_path and high_res_thumbnail_path columns");
         }
     };
 
@@ -44,7 +53,7 @@ public abstract class AppDatabase extends RoomDatabase {
                             AppDatabase.class,
                             "leafiq_database"
                     )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .addCallback(new Callback() {
                         @Override
                         public void onOpen(@NonNull SupportSQLiteDatabase db) {
