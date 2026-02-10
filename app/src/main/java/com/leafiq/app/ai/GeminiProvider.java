@@ -83,9 +83,8 @@ public class GeminiProvider implements AIProvider {
 
             try (Response response = client.newCall(request).execute()) {
                 if (!response.isSuccessful()) {
-                    String errorBody = response.body() != null ? response.body().string() : "Unknown error";
                     throw new AIProviderException(
-                        "API error: " + response.code() + " " + response.message() + " - " + errorBody);
+                        "API error: " + response.code() + " " + response.message(), null, response.code());
                 }
 
                 String responseBody = response.body().string();
@@ -117,7 +116,7 @@ public class GeminiProvider implements AIProvider {
                 return result;
             }
         } catch (JSONException | IOException e) {
-            throw new AIProviderException("Analysis failed: " + e.getMessage(), e);
+            throw new AIProviderException("Analysis failed: " + e.getMessage(), e, 0);
         }
     }
 
