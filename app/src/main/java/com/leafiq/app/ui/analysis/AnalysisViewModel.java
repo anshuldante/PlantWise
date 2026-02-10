@@ -4,6 +4,7 @@ import android.app.Application;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 
 import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LiveData;
@@ -27,6 +28,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import okhttp3.OkHttpClient;
 
@@ -506,35 +509,217 @@ public class AnalysisViewModel extends AndroidViewModel {
 
     /**
      * Parses frequency strings to integer days.
-     * Simple data mapping helper for building CareItem entities.
+     * Comprehensive parser with numeric extraction, range support, condition-based detection,
+     * and bounds enforcement (1-90 days).
      * <p>
-     * Examples: "daily" -> 1, "weekly" -> 7, "2 weeks" -> 14, "monthly" -> 30
+     * Rules applied in order:
+     * 1. Null/empty -> 14 (ultimate fallback)
+     * 2. Condition-based ("as needed", "when soil is dry", etc.) -> 14
+     * 3. Range extraction ("every 2-3 weeks") -> higher bound * unit
+     * 4. Single numeric extraction ("every 10 days", "every 2 weeks") -> num * unit
+     * 5. Special phrases ("twice a week" -> 4, "twice a month" -> 15)
+     * 6. Keyword fallbacks (LONGEST first: biweekly before weekly, bimonthly before monthly)
+     * 7. Ultimate fallback -> 14
+     * <p>
+     * All results clamped to [1, 90] days. Every call logs input and result.
+     * <p>
+     * Examples:
+     * - "daily" -> 1
+     * - "weekly" -> 7
+     * - "biweekly" -> 14 (BUG-15 FIX: checked before "weekly")
+     * - "every 10 days" -> 10
+     * - "every 2-3 weeks" -> 21
+     * - "as needed" -> 14
+     * - "annually" -> 90 (capped)
      */
     private int parseFrequencyDays(String frequency) {
-        if (frequency == null) return 7;
-        String lower = frequency.toLowerCase();
+        // 1. Null/empty guard
+        if (frequency == null || frequency.trim().isEmpty()) {
+            Log.i("CareSystem", "Parsed frequency: null/empty -> 14 days (ultimate fallback)");
+            return 14;
+        }
 
-        // Try to extract a number
-        try {
-            String numStr = lower.replaceAll("[^0-9]", "");
-            if (!numStr.isEmpty()) {
-                int num = Integer.parseInt(numStr);
-                if (lower.contains("week")) return num * 7;
-                if (lower.contains("month")) return num * 30;
-                if (lower.contains("day")) return num;
-                // Bare number, assume days
-                return Math.max(1, num);
+        String lower = frequency.toLowerCase().trim();
+        String logContext = "";
+
+        // 2. Condition-based detection
+        if (lower.contains("as needed") || lower.contains("check")) {
+            int result = clampToRange(14);
+            Log.i("CareSystem", "Parsed frequency: '" + frequency + "' -> " + result + " days (condition-based: as needed/check)");
+            return result;
+        }
+        // "when" or "if" followed by common plant condition words
+        if ((lower.contains("when") || (lower.contains("if") &&
+                (lower.contains("dry") || lower.contains("wet") || lower.contains("soil") || lower.contains("moisture")))) &&
+                (lower.contains("dry") || lower.contains("wet") || lower.contains("soil") || lower.contains("moisture"))) {
+            int result = clampToRange(14);
+            Log.i("CareSystem", "Parsed frequency: '" + frequency + "' -> " + result + " days (condition-based: when/if with soil conditions)");
+            return result;
+        }
+
+        // 3. Range pattern: "2-3 weeks" -> higher bound
+        Pattern rangePattern = Pattern.compile("(\\d+)\\s*-\\s*(\\d+)");
+        Matcher rangeMatcher = rangePattern.matcher(lower);
+        if (rangeMatcher.find()) {
+            int higherBound = Integer.parseInt(rangeMatcher.group(2));
+            int multiplier = 1;
+            if (lower.contains("week")) multiplier = 7;
+            else if (lower.contains("month")) multiplier = 30;
+            // else assume days
+            int result = clampToRange(higherBound * multiplier);
+            Log.i("CareSystem", "Parsed frequency: '" + frequency + "' -> " + result + " days (range: higher bound " + higherBound + " * " + multiplier + ")");
+            return result;
+        }
+
+        // 4. Single numeric extraction: "every 10 days", "2 weeks"
+        Pattern numPattern = Pattern.compile("\\d+");
+        Matcher numMatcher = numPattern.matcher(lower);
+        if (numMatcher.find()) {
+            int num = Integer.parseInt(numMatcher.group());
+            int multiplier = 1;
+            if (lower.contains("week")) multiplier = 7;
+            else if (lower.contains("month")) multiplier = 30;
+            // else assume days
+            int result = clampToRange(num * multiplier);
+            Log.i("CareSystem", "Parsed frequency: '" + frequency + "' -> " + result + " days (numeric: " + num + " * " + multiplier + ")");
+            return result;
+        }
+
+        // 5. Special phrases
+        if (lower.contains("twice a week")) {
+            int result = clampToRange(4);
+            Log.i("CareSystem", "Parsed frequency: '" + frequency + "' -> " + result + " days (special: twice a week)");
+            return result;
+        }
+        if (lower.contains("twice a month")) {
+            int result = clampToRange(15);
+            Log.i("CareSystem", "Parsed frequency: '" + frequency + "' -> " + result + " days (special: twice a month)");
+            return result;
+        }
+
+        // 6. Keyword fallbacks
+        // For seasonal qualifiers (e.g., "monthly in summer, weekly in winter"),
+        // find which keyword appears FIRST in the string and use that.
+        // Within each priority group, check LONGEST match first to avoid substring collision.
+
+        // Build list of keyword matches with their positions
+        int earliestPos = Integer.MAX_VALUE;
+        int matchedDays = 14; // default
+        String matchedKeyword = "";
+
+        // Daily
+        int pos = lower.indexOf("daily");
+        if (pos >= 0 && pos < earliestPos) {
+            earliestPos = pos;
+            matchedDays = 1;
+            matchedKeyword = "daily";
+        }
+
+        // BUG-15 FIX: Check biweekly/bi-weekly/fortnightly BEFORE weekly
+        pos = lower.indexOf("biweekly");
+        if (pos >= 0 && pos < earliestPos) {
+            earliestPos = pos;
+            matchedDays = 14;
+            matchedKeyword = "biweekly";
+        }
+        pos = lower.indexOf("bi-weekly");
+        if (pos >= 0 && pos < earliestPos) {
+            earliestPos = pos;
+            matchedDays = 14;
+            matchedKeyword = "bi-weekly";
+        }
+        pos = lower.indexOf("fortnightly");
+        if (pos >= 0 && pos < earliestPos) {
+            earliestPos = pos;
+            matchedDays = 14;
+            matchedKeyword = "fortnightly";
+        }
+
+        // Weekly (check after biweekly to ensure substring doesn't override longer match at same position)
+        pos = lower.indexOf("weekly");
+        if (pos >= 0 && pos < earliestPos && !lower.substring(Math.max(0, pos-2), pos+6).contains("biweekly") && !lower.substring(Math.max(0, pos-3), pos+6).contains("bi-weekly")) {
+            earliestPos = pos;
+            matchedDays = 7;
+            matchedKeyword = "weekly";
+        }
+        if (matchedDays != 7) { // Only check "week" if "weekly" didn't match
+            pos = lower.indexOf("week");
+            if (pos >= 0 && pos < earliestPos && !lower.substring(Math.max(0, pos-2), Math.min(lower.length(), pos+4)).contains("biweekly") && !lower.substring(Math.max(0, pos-3), Math.min(lower.length(), pos+4)).contains("bi-weekly")) {
+                earliestPos = pos;
+                matchedDays = 7;
+                matchedKeyword = "week";
             }
-        } catch (NumberFormatException ignored) {}
+        }
 
-        // Keyword fallbacks
-        if (lower.contains("daily")) return 1;
-        if (lower.contains("weekly") || lower.contains("week")) return 7;
-        if (lower.contains("biweekly") || lower.contains("bi-weekly")) return 14;
-        if (lower.contains("monthly") || lower.contains("month")) return 30;
-        if (lower.contains("yearly") || lower.contains("annual")) return 365;
+        // Bimonthly BEFORE monthly
+        pos = lower.indexOf("bimonthly");
+        if (pos >= 0 && pos < earliestPos) {
+            earliestPos = pos;
+            matchedDays = 60;
+            matchedKeyword = "bimonthly";
+        }
+        pos = lower.indexOf("bi-monthly");
+        if (pos >= 0 && pos < earliestPos) {
+            earliestPos = pos;
+            matchedDays = 60;
+            matchedKeyword = "bi-monthly";
+        }
 
-        return 7; // Default to weekly
+        // Monthly (check after bimonthly)
+        pos = lower.indexOf("monthly");
+        if (pos >= 0 && pos < earliestPos && !lower.substring(Math.max(0, pos-2), pos+7).contains("bimonthly") && !lower.substring(Math.max(0, pos-3), pos+7).contains("bi-monthly")) {
+            earliestPos = pos;
+            matchedDays = 30;
+            matchedKeyword = "monthly";
+        }
+        if (matchedDays != 30 && matchedDays != 60) { // Only check "month" if "monthly"/"bimonthly" didn't match
+            pos = lower.indexOf("month");
+            if (pos >= 0 && pos < earliestPos && !lower.substring(Math.max(0, pos-2), Math.min(lower.length(), pos+5)).contains("bimonthly") && !lower.substring(Math.max(0, pos-3), Math.min(lower.length(), pos+5)).contains("bi-monthly")) {
+                earliestPos = pos;
+                matchedDays = 30;
+                matchedKeyword = "month";
+            }
+        }
+
+        // Yearly/annual
+        pos = lower.indexOf("yearly");
+        if (pos >= 0 && pos < earliestPos) {
+            earliestPos = pos;
+            matchedDays = 365; // Will be capped to 90
+            matchedKeyword = "yearly";
+        }
+        pos = lower.indexOf("annual");
+        if (pos >= 0 && pos < earliestPos) {
+            earliestPos = pos;
+            matchedDays = 365; // Will be capped to 90
+            matchedKeyword = "annual";
+        }
+        pos = lower.indexOf("year");
+        if (pos >= 0 && pos < earliestPos && !lower.substring(Math.max(0, pos), Math.min(lower.length(), pos+6)).contains("yearly")) {
+            earliestPos = pos;
+            matchedDays = 365; // Will be capped to 90
+            matchedKeyword = "year";
+        }
+
+        // If we found a keyword match, return it
+        if (earliestPos != Integer.MAX_VALUE) {
+            int result = clampToRange(matchedDays);
+            Log.i("CareSystem", "Parsed frequency: '" + frequency + "' -> " + result + " days (keyword: " + matchedKeyword + " at position " + earliestPos + ")");
+            return result;
+        }
+
+        // 7. Ultimate fallback
+        int result = clampToRange(14);
+        Log.i("CareSystem", "Parsed frequency: '" + frequency + "' -> " + result + " days (ultimate fallback)");
+        return result;
+    }
+
+    /**
+     * Clamps interval to valid range [1, 90] days.
+     * Min 1 day, max 90 days per user decision.
+     */
+    private int clampToRange(int days) {
+        return Math.min(Math.max(days, 1), 90);
     }
 
     /**
