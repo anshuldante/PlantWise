@@ -126,4 +126,8 @@
     <string name="migration_error_title">Update Failed</string>
     <string name="migration_error_message">Your data is safe. Please reinstall the latest version.</string>
     <string name="migration_error_close">Close App</string>
+
+    <!-- Encryption errors -->
+    <string name="secure_storage_unavailable">Secure storage unavailable. Cannot save API keys.</string>
+    <string name="secure_storage_issue_banner">Secure storage issue detected. Cannot save new API keys.</string>
 </resources>
