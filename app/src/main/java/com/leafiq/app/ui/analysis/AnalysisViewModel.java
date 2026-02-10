@@ -2,6 +2,8 @@ package com.leafiq.app.ui.analysis;
 
 import android.app.Application;
 import android.net.Uri;
+import android.os.Handler;
+import android.os.Looper;
 
 import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LiveData;
@@ -42,6 +44,8 @@ import okhttp3.OkHttpClient;
  */
 public class AnalysisViewModel extends AndroidViewModel {
 
+    private static final long TIMEOUT_WARNING_MS = 30_000;  // 30 seconds
+
     private final MutableLiveData<AnalysisUiState> uiState;
     private final MutableLiveData<List<CareSchedule>> scheduleUpdatePrompts;
     private final AnalyzePlantUseCase analyzePlantUseCase;
@@ -49,6 +53,9 @@ public class AnalysisViewModel extends AndroidViewModel {
     private final ImagePreprocessor imagePreprocessor;
     private final KeystoreHelper keystoreHelper;
     private final CareScheduleManager careScheduleManager;
+
+    private Handler warningHandler;
+    private Runnable warningRunnable;
 
     /**
      * Callback interface for save operations.
@@ -95,6 +102,35 @@ public class AnalysisViewModel extends AndroidViewModel {
     }
 
     /**
+     * Starts the 30-second warning timer.
+     * Updates progress text to "Analysis is taking longer than usual..." after 30 seconds.
+     */
+    private void startWarningTimer() {
+        warningHandler = new Handler(Looper.getMainLooper());
+
+        // 30s warning — update progress text (per user decision: generic, no provider name)
+        warningRunnable = () -> {
+            AnalysisUiState current = uiState.getValue();
+            if (current != null && current.isLoading()) {
+                uiState.setValue(AnalysisUiState.loadingWithMessage(
+                    "Analysis is taking longer than usual..."));
+            }
+        };
+
+        warningHandler.postDelayed(warningRunnable, TIMEOUT_WARNING_MS);
+    }
+
+    /**
+     * Cancels the warning timer.
+     * Must be called on all exit paths (success, error, vision-not-supported, onCleared).
+     */
+    private void cancelWarningTimer() {
+        if (warningHandler != null && warningRunnable != null) {
+            warningHandler.removeCallbacks(warningRunnable);
+        }
+    }
+
+    /**
      * Analyzes a plant image using AI.
      * Delegates to AnalyzePlantUseCase, updates UI state via LiveData.
      *
@@ -104,6 +140,7 @@ public class AnalysisViewModel extends AndroidViewModel {
     public void analyzeImage(Uri imageUri, String plantId) {
         // Set loading state
         uiState.setValue(AnalysisUiState.loading());
+        startWarningTimer();
 
         // Get provider and API key
         String providerName = keystoreHelper.getProvider();
@@ -119,16 +156,26 @@ public class AnalysisViewModel extends AndroidViewModel {
         analyzePlantUseCase.execute(imageUri, plantId, provider, new AnalyzePlantUseCase.Callback() {
             @Override
             public void onSuccess(PlantAnalysisResult result) {
+                cancelWarningTimer();
                 uiState.postValue(AnalysisUiState.success(result));
             }
 
             @Override
             public void onError(String message) {
-                uiState.postValue(AnalysisUiState.error(message));
+                cancelWarningTimer();
+                // Check if this is an OkHttp timeout (callTimeout fires InterruptedIOException)
+                if (message != null && (message.toLowerCase().contains("timeout")
+                        || message.toLowerCase().contains("canceled"))) {
+                    uiState.postValue(AnalysisUiState.error(
+                        "Analysis timed out. Please try again."));
+                } else {
+                    uiState.postValue(AnalysisUiState.error(message));
+                }
             }
 
             @Override
             public void onVisionNotSupported(String providerDisplayName) {
+                cancelWarningTimer();
                 uiState.postValue(AnalysisUiState.visionNotSupported(providerDisplayName));
             }
         });
@@ -146,6 +193,7 @@ public class AnalysisViewModel extends AndroidViewModel {
     public void reanalyzeWithCorrections(Uri imageUri, String plantId, String correctedName, String additionalContext) {
         // Set loading state
         uiState.setValue(AnalysisUiState.loading());
+        startWarningTimer();
 
         // Get provider and API key
         String providerName = keystoreHelper.getProvider();
@@ -162,16 +210,26 @@ public class AnalysisViewModel extends AndroidViewModel {
                 new AnalyzePlantUseCase.Callback() {
             @Override
             public void onSuccess(PlantAnalysisResult result) {
+                cancelWarningTimer();
                 uiState.postValue(AnalysisUiState.success(result));
             }
 
             @Override
             public void onError(String message) {
-                uiState.postValue(AnalysisUiState.error(message));
+                cancelWarningTimer();
+                // Check if this is an OkHttp timeout (callTimeout fires InterruptedIOException)
+                if (message != null && (message.toLowerCase().contains("timeout")
+                        || message.toLowerCase().contains("canceled"))) {
+                    uiState.postValue(AnalysisUiState.error(
+                        "Analysis timed out. Please try again."));
+                } else {
+                    uiState.postValue(AnalysisUiState.error(message));
+                }
             }
 
             @Override
             public void onVisionNotSupported(String providerDisplayName) {
+                cancelWarningTimer();
                 uiState.postValue(AnalysisUiState.visionNotSupported(providerDisplayName));
             }
         });
@@ -505,5 +563,15 @@ public class AnalysisViewModel extends AndroidViewModel {
                 });
             }
         });
+    }
+
+    /**
+     * Cleanup when ViewModel is destroyed.
+     * Cancels warning timer to prevent memory leaks.
+     */
+    @Override
+    protected void onCleared() {
+        super.onCleared();
+        cancelWarningTimer();
     }
 }
