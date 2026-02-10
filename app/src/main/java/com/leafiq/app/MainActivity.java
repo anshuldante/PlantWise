@@ -36,6 +36,14 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // Check if database migration failed during app startup
+        LeafIQApplication app = (LeafIQApplication) getApplication();
+        if (app.isMigrationFailed()) {
+            LeafIQApplication.showMigrationErrorAndExit(this);
+            return;
+        }
+
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_main);
 
