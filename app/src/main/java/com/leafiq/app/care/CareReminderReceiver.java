@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 import android.widget.Toast;
 
 import com.leafiq.app.LeafIQApplication;
@@ -30,6 +31,8 @@ public class CareReminderReceiver extends BroadcastReceiver {
 
     public static final String ACTION_DONE = "com.leafiq.app.ACTION_CARE_DONE";
     public static final String ACTION_SNOOZE = "com.leafiq.app.ACTION_CARE_SNOOZE";
+    public static final String ACTION_NOTIFICATION_DISMISSED = "com.leafiq.app.ACTION_NOTIFICATION_DISMISSED";
+    public static final String ACTION_MARK_ALL_DONE = "com.leafiq.app.ACTION_MARK_ALL_DONE";
 
     private static final String EXTRA_SCHEDULE_ID = "schedule_id";
     private static final String EXTRA_SNOOZE_OPTION = "snooze_option";
@@ -66,6 +69,12 @@ public class CareReminderReceiver extends BroadcastReceiver {
                     String scheduleId = intent.getStringExtra(EXTRA_SCHEDULE_ID);
                     int snoozeOption = intent.getIntExtra(EXTRA_SNOOZE_OPTION, 0);
                     handleSnoozeAction(context, repository, scheduleManager, scheduleId, snoozeOption);
+                } else if (ACTION_NOTIFICATION_DISMISSED.equals(action)) {
+                    String scheduleId = intent.getStringExtra(EXTRA_SCHEDULE_ID);
+                    handleNotificationDismissed(context, scheduleId);
+                } else if (ACTION_MARK_ALL_DONE.equals(action)) {
+                    String scheduleIdsStr = intent.getStringExtra("schedule_ids");
+                    handleMarkAllDone(context, repository, scheduleManager, scheduleIdsStr);
                 }
             } finally {
                 // Signal that background work is complete
@@ -123,7 +132,7 @@ public class CareReminderReceiver extends BroadcastReceiver {
 
     /**
      * Handles "Done" action from notification.
-     * Marks care as complete, dismisses notification, shows toast.
+     * Marks care as complete, dismisses notification.
      */
     private void handleDoneAction(Context context, PlantRepository repository,
                                    CareScheduleManager scheduleManager, String scheduleId) {
@@ -137,26 +146,12 @@ public class CareReminderReceiver extends BroadcastReceiver {
             return;
         }
 
-        // Get plant for toast message
-        Plant plant = repository.getPlantByIdSync(schedule.plantId);
-        String plantName = plant != null && plant.nickname != null && !plant.nickname.isEmpty()
-                ? plant.nickname
-                : (plant != null && plant.commonName != null && !plant.commonName.isEmpty()
-                        ? plant.commonName : "plant");
-
         // Mark care as complete
         repository.markCareComplete(scheduleId, "notification_action", new PlantRepository.RepositoryCallback<Void>() {
             @Override
             public void onSuccess(Void result) {
                 // Dismiss notification
                 NotificationHelper.dismissNotification(context, scheduleId);
-
-                // Show toast on main thread
-                Handler mainHandler = new Handler(Looper.getMainLooper());
-                mainHandler.post(() -> {
-                    String careVerb = getCareVerb(schedule.careType);
-                    Toast.makeText(context, careVerb + " " + plantName, Toast.LENGTH_SHORT).show();
-                });
 
                 // Reschedule alarm
                 scheduleManager.scheduleNextAlarm();
@@ -165,7 +160,7 @@ public class CareReminderReceiver extends BroadcastReceiver {
             @Override
             public void onError(Exception e) {
                 // Log error silently
-                android.util.Log.e("CareReminderReceiver", "Failed to mark care complete", e);
+                Log.e("CareSystem", "Failed to mark care complete", e);
             }
         });
     }
@@ -223,9 +218,61 @@ public class CareReminderReceiver extends BroadcastReceiver {
             @Override
             public void onError(Exception e) {
                 // Log error silently
-                android.util.Log.e("CareReminderReceiver", "Failed to snooze reminder", e);
+                Log.e("CareSystem", "Failed to snooze reminder", e);
             }
         });
+    }
+
+    /**
+     * Handles notification dismissed by user swipe.
+     * Checks if summary should be dismissed or updated.
+     */
+    private void handleNotificationDismissed(Context context, String scheduleId) {
+        if (scheduleId == null) {
+            return;
+        }
+
+        Log.i("CareSystem", "Notification dismissed by user: " + scheduleId);
+
+        // The child notification is already gone (DeleteIntent fires AFTER dismiss)
+        // Check and update summary
+        NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        NotificationHelper.checkAndUpdateSummary(context, nm);
+    }
+
+    /**
+     * Handles "Mark All Done" action from summary notification.
+     * Records individual completion for each schedule.
+     */
+    private void handleMarkAllDone(Context context, PlantRepository repository,
+                                    CareScheduleManager scheduleManager, String scheduleIdsStr) {
+        if (scheduleIdsStr == null) {
+            return;
+        }
+
+        String[] scheduleIds = scheduleIdsStr.split(",");
+        Log.i("CareSystem", "Marking all done: " + scheduleIds.length + " schedules");
+
+        // Mark each schedule complete
+        for (String scheduleId : scheduleIds) {
+            repository.markCareComplete(scheduleId.trim(), "notification_action", new PlantRepository.RepositoryCallback<Void>() {
+                @Override
+                public void onSuccess(Void result) {
+                    Log.i("CareSystem", "Marked complete: " + scheduleId.trim());
+                }
+
+                @Override
+                public void onError(Exception e) {
+                    Log.e("CareSystem", "Failed to mark complete: " + scheduleId.trim(), e);
+                }
+            });
+        }
+
+        // Dismiss all notifications
+        NotificationHelper.dismissAllNotifications(context);
+
+        // Reschedule alarm
+        scheduleManager.scheduleNextAlarm();
     }
 
     /**

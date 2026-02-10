@@ -83,6 +83,8 @@
             <intent-filter>
                 <action android:name="com.leafiq.app.ACTION_CARE_DONE"/>
                 <action android:name="com.leafiq.app.ACTION_CARE_SNOOZE"/>
+                <action android:name="com.leafiq.app.ACTION_NOTIFICATION_DISMISSED"/>
+                <action android:name="com.leafiq.app.ACTION_MARK_ALL_DONE"/>
             </intent-filter>
         </receiver>
 
