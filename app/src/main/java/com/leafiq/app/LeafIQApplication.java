@@ -12,6 +12,14 @@ import com.leafiq.app.data.repository.PlantRepository;
 import com.leafiq.app.util.AppExecutors;
 import com.leafiq.app.util.KeystoreHelper;
 
+import java.io.IOException;
+import java.util.concurrent.TimeUnit;
+
+import okhttp3.Interceptor;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
+
 /**
  * Application class for LeafIQ.
  * Initializes shared dependencies at app startup.
@@ -30,6 +38,7 @@ import com.leafiq.app.util.KeystoreHelper;
 public class LeafIQApplication extends Application {
 
     private AppExecutors appExecutors;
+    private OkHttpClient httpClient;
     private PlantRepository plantRepository;
     private CareScheduleManager careScheduleManager;
     private boolean migrationFailed = false;
@@ -41,6 +50,15 @@ public class LeafIQApplication extends Application {
 
         // Initialize thread pools
         appExecutors = new AppExecutors();
+
+        // Initialize shared HTTP client for AI providers
+        httpClient = new OkHttpClient.Builder()
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(90, TimeUnit.SECONDS)
+            .writeTimeout(10, TimeUnit.SECONDS)
+            .callTimeout(90, TimeUnit.SECONDS)  // Hard timeout for total request duration - OkHttp cancels the request properly
+            .addInterceptor(createLoggingInterceptor())
+            .build();
 
         // Initialize repository with database DAOs
         AppDatabase db;
@@ -73,6 +91,15 @@ public class LeafIQApplication extends Application {
      */
     public AppExecutors getAppExecutors() {
         return appExecutors;
+    }
+
+    /**
+     * Gets the application-wide OkHttpClient instance.
+     * Shared across all AI providers for connection reuse.
+     * Configured with 90-second call timeout and request logging.
+     */
+    public OkHttpClient getHttpClient() {
+        return httpClient;
     }
 
     /**
@@ -127,5 +154,62 @@ public class LeafIQApplication extends Application {
             })
             .setCancelable(false)
             .show();
+    }
+
+    /**
+     * Creates an HTTP logging interceptor that masks API keys for security.
+     * Logs request provider, method, URL, and response code/duration.
+     */
+    private Interceptor createLoggingInterceptor() {
+        return new Interceptor() {
+            @Override
+            public Response intercept(Chain chain) throws IOException {
+                Request request = chain.request();
+                long startTime = System.currentTimeMillis();
+
+                // Extract provider from URL host
+                String host = request.url().host();
+                String provider = "Unknown";
+                if (host.contains("generativelanguage.googleapis.com")) provider = "Gemini";
+                else if (host.contains("anthropic.com")) provider = "Claude";
+                else if (host.contains("openai.com")) provider = "OpenAI";
+                else if (host.contains("perplexity.ai")) provider = "Perplexity";
+
+                // Mask API keys in URL (query parameter)
+                String url = request.url().toString();
+                String maskedUrl = url.replaceAll("(\\?|&)key=([^&]+)", "$1key=***REDACTED***");
+
+                // Mask API keys in headers
+                String authHeader = request.header("Authorization");
+                String maskedAuth = authHeader != null ? "Bearer ***REDACTED***" : null;
+                String apiKeyHeader = request.header("x-api-key");
+                String maskedApiKey = apiKeyHeader != null ? "***REDACTED***" : null;
+
+                // Log request
+                Log.i("HttpClient", String.format("[%s] %s %s | Auth: %s | x-api-key: %s",
+                        provider, request.method(), maskedUrl,
+                        maskedAuth != null ? maskedAuth : "none",
+                        maskedApiKey != null ? maskedApiKey : "none"));
+
+                // Execute request
+                Response response;
+                try {
+                    response = chain.proceed(request);
+                    long duration = System.currentTimeMillis() - startTime;
+
+                    // Log response
+                    long contentLength = response.body() != null ? response.body().contentLength() : 0;
+                    Log.i("HttpClient", String.format("[%s] Response: %d | Duration: %dms | Size: %d bytes",
+                            provider, response.code(), duration, contentLength));
+
+                    return response;
+                } catch (IOException e) {
+                    long duration = System.currentTimeMillis() - startTime;
+                    Log.e("HttpClient", String.format("[%s] Request failed after %dms: %s",
+                            provider, duration, e.getMessage()));
+                    throw e;
+                }
+            }
+        };
     }
 }
