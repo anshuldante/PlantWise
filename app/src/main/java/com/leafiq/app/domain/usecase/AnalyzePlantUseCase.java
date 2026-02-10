@@ -12,7 +12,9 @@ import com.leafiq.app.data.model.PlantAnalysisResult;
 import com.leafiq.app.data.repository.PlantRepository;
 import com.leafiq.app.domain.service.AIAnalysisService;
 import com.leafiq.app.domain.service.ImagePreprocessor;
+import com.leafiq.app.util.FileCleanupUtils;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -141,8 +143,12 @@ public class AnalyzePlantUseCase {
                 callback.onSuccess(result);
 
             } catch (AIProviderException e) {
+                // Clean up any temp files created during this analysis attempt
+                cleanupTempFiles();
                 callback.onError(NetworkUtils.classifyException(e, e.getHttpStatusCode()));
             } catch (IOException e) {
+                // Clean up any temp files created during this analysis attempt
+                cleanupTempFiles();
                 callback.onError(NetworkUtils.classifyException(e, 0));
             }
         });
@@ -203,10 +209,38 @@ public class AnalyzePlantUseCase {
                 callback.onSuccess(result);
 
             } catch (AIProviderException e) {
+                // Clean up any temp files created during this analysis attempt
+                cleanupTempFiles();
                 callback.onError(NetworkUtils.classifyException(e, e.getHttpStatusCode()));
             } catch (IOException e) {
+                // Clean up any temp files created during this analysis attempt
+                cleanupTempFiles();
                 callback.onError(NetworkUtils.classifyException(e, 0));
             }
         });
+    }
+
+    /**
+     * Cleans up any temporary files created during analysis.
+     * Called immediately on error per user decision for immediate cleanup.
+     * Uses cache directory since temp image processing files go there.
+     * Best-effort cleanup - won't mask the original error.
+     */
+    private void cleanupTempFiles() {
+        try {
+            File cacheDir = imagePreprocessor.getCacheDir();
+            if (cacheDir != null && cacheDir.exists()) {
+                File[] tempFiles = cacheDir.listFiles((dir, name) ->
+                    name.startsWith("image_") || name.endsWith(".tmp"));
+                if (tempFiles != null) {
+                    for (File file : tempFiles) {
+                        FileCleanupUtils.deleteFileQuietly(file);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // Cleanup is best-effort — don't let it mask the original error
+            android.util.Log.w("AnalyzePlantUseCase", "Temp file cleanup failed: " + e.getMessage());
+        }
     }
 }
