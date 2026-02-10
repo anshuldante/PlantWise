@@ -1,6 +1,7 @@
 package com.leafiq.app.ui.care;
 
 import android.app.Application;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.lifecycle.AndroidViewModel;
@@ -11,7 +12,9 @@ import com.leafiq.app.LeafIQApplication;
 import com.leafiq.app.care.CareScheduleManager;
 import com.leafiq.app.data.entity.CareSchedule;
 import com.leafiq.app.data.entity.Plant;
+import com.leafiq.app.data.model.CareCompletionWithPlantInfo;
 import com.leafiq.app.data.repository.PlantRepository;
+import com.leafiq.app.util.DateFormatter;
 
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -52,13 +55,19 @@ public class CareOverviewViewModel extends AndroidViewModel {
     public static class CareCompletionItem {
         public final String scheduleId;
         public final String careType;
-        public final String plantDisplayName;
+        public final String displayText;     // "Watered Monstera"
+        public final String relativeTime;    // "2 days ago"
+        public final String plantId;         // For navigation
         public final long completedAt;
 
-        public CareCompletionItem(String scheduleId, String careType, String plantDisplayName, long completedAt) {
+        public CareCompletionItem(String scheduleId, String careType,
+                                   String displayText, String relativeTime,
+                                   String plantId, long completedAt) {
             this.scheduleId = scheduleId;
             this.careType = careType;
-            this.plantDisplayName = plantDisplayName;
+            this.displayText = displayText;
+            this.relativeTime = relativeTime;
+            this.plantId = plantId;
             this.completedAt = completedAt;
         }
     }
@@ -165,9 +174,7 @@ public class CareOverviewViewModel extends AndroidViewModel {
         // Add source to mediator - when plants change, refresh tasks
         todayTasks.addSource(allPlantsSource, plants -> refreshTasks());
         upcomingTasks.addSource(allPlantsSource, plants -> refreshTasks());
-
-        // For completions, we'll use a placeholder for now since we need to join multiple tables
-        recentCompletions.setValue(new ArrayList<>());
+        recentCompletions.addSource(allPlantsSource, plants -> refreshRecentCompletions());
     }
 
     /**
@@ -222,5 +229,78 @@ public class CareOverviewViewModel extends AndroidViewModel {
                 android.util.Log.e("CareOverviewViewModel", "Error refreshing tasks", e);
             }
         });
+    }
+
+    /**
+     * Refreshes recent completions list by querying database on background thread.
+     * Loads completions from last 14 days, max 7 entries, sorted most recent first.
+     */
+    private void refreshRecentCompletions() {
+        ioExecutor.execute(() -> {
+            try {
+                // Calculate 14 days ago
+                long fourteenDaysAgo = System.currentTimeMillis() - (14L * 24 * 60 * 60 * 1000);
+
+                // Query database for recent completions (max 7 entries)
+                List<CareCompletionWithPlantInfo> completions =
+                        repository.getRecentCompletionsSync(fourteenDaysAgo, 7);
+
+                // Transform to CareCompletionItem
+                List<CareCompletionItem> items = new ArrayList<>();
+                for (CareCompletionWithPlantInfo completion : completions) {
+                    // Plant display name: nickname if non-null/non-empty, else commonName, else "Your plant"
+                    String plantName;
+                    if (completion.nickname != null && !completion.nickname.isEmpty()) {
+                        plantName = completion.nickname;
+                    } else if (completion.commonName != null && !completion.commonName.isEmpty()) {
+                        plantName = completion.commonName;
+                    } else {
+                        plantName = "Your plant";
+                    }
+
+                    // Past tense verb
+                    String verb = getPastTenseVerb(completion.careType);
+
+                    // Display text: "Watered Monstera"
+                    String displayText = verb + " " + plantName;
+
+                    // Relative time: "2 days ago"
+                    String relativeTime = DateFormatter.getRelativeTime(getApplication(), completion.completedAt);
+
+                    items.add(new CareCompletionItem(
+                            completion.scheduleId,
+                            completion.careType,
+                            displayText,
+                            relativeTime,
+                            completion.plantId,
+                            completion.completedAt
+                    ));
+                }
+
+                // Post results to main thread
+                recentCompletions.postValue(items);
+
+            } catch (Exception e) {
+                Log.e("CareSystem", "Error refreshing recent completions", e);
+            }
+        });
+    }
+
+    /**
+     * Gets past tense verb for care type.
+     */
+    private String getPastTenseVerb(String careType) {
+        switch (careType) {
+            case "water":
+                return "Watered";
+            case "fertilize":
+                return "Fertilized";
+            case "repot":
+                return "Repotted";
+            case "prune":
+                return "Pruned";
+            default:
+                return "Cared for";
+        }
     }
 }

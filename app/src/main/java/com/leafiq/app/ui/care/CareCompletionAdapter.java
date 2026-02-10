@@ -21,11 +21,17 @@ import java.util.List;
  */
 public class CareCompletionAdapter extends RecyclerView.Adapter<CareCompletionAdapter.ViewHolder> {
 
+    public interface OnCompletionClickListener {
+        void onCompletionClicked(CareOverviewViewModel.CareCompletionItem item);
+    }
+
     private List<CareOverviewViewModel.CareCompletionItem> items = new ArrayList<>();
     private final Context context;
+    private final OnCompletionClickListener listener;
 
-    public CareCompletionAdapter(Context context) {
+    public CareCompletionAdapter(Context context, OnCompletionClickListener listener) {
         this.context = context;
+        this.listener = listener;
     }
 
     public void setItems(List<CareOverviewViewModel.CareCompletionItem> items) {
@@ -68,12 +74,14 @@ public class CareCompletionAdapter extends RecyclerView.Adapter<CareCompletionAd
             // Care emoji
             emoji.setText(getCareEmoji(item.careType));
 
-            // Completion text: "Watered Fern"
-            String verb = getPastTenseVerb(item.careType);
-            text.setText(verb + " " + item.plantDisplayName);
+            // Completion text: already formatted as "Watered Monstera"
+            text.setText(item.displayText);
 
-            // Relative timestamp
-            timestamp.setText(DateFormatter.getRelativeTime(context, item.completedAt));
+            // Relative timestamp: already formatted as "2 days ago"
+            timestamp.setText(item.relativeTime);
+
+            // Click listener for navigation
+            itemView.setOnClickListener(v -> listener.onCompletionClicked(item));
         }
 
         private String getCareEmoji(String careType) {
@@ -86,19 +94,6 @@ public class CareCompletionAdapter extends RecyclerView.Adapter<CareCompletionAd
                     return "🪴";
                 default:
                     return "🌿";
-            }
-        }
-
-        private String getPastTenseVerb(String careType) {
-            switch (careType) {
-                case "water":
-                    return "Watered";
-                case "fertilize":
-                    return "Fertilized";
-                case "repot":
-                    return "Repotted";
-                default:
-                    return "Cared for";
             }
         }
     }

@@ -1,5 +1,6 @@
 package com.leafiq.app.ui.care;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.TextView;
@@ -109,7 +110,12 @@ public class CareOverviewActivity extends AppCompatActivity {
 
         // Recent completions
         recentRecycler.setLayoutManager(new LinearLayoutManager(this));
-        recentAdapter = new CareCompletionAdapter(this);
+        recentAdapter = new CareCompletionAdapter(this, item -> {
+            Intent intent = new Intent(CareOverviewActivity.this,
+                com.leafiq.app.ui.detail.PlantDetailActivity.class);
+            intent.putExtra("plant_id", item.plantId);
+            startActivity(intent);
+        });
         recentRecycler.setAdapter(recentAdapter);
     }
 
