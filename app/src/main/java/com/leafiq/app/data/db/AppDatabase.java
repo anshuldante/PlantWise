@@ -16,7 +16,7 @@ import com.leafiq.app.data.entity.CareItem;
 import com.leafiq.app.data.entity.CareSchedule;
 import com.leafiq.app.data.entity.Plant;
 
-@Database(entities = {Plant.class, Analysis.class, CareItem.class, CareSchedule.class, CareCompletion.class}, version = 3, exportSchema = true)
+@Database(entities = {Plant.class, Analysis.class, CareItem.class, CareSchedule.class, CareCompletion.class}, version = 4, exportSchema = true)
 public abstract class AppDatabase extends RoomDatabase {
 
     static final Migration MIGRATION_1_2 = new Migration(1, 2) {
@@ -33,6 +33,15 @@ public abstract class AppDatabase extends RoomDatabase {
             database.execSQL("ALTER TABLE plants ADD COLUMN medium_thumbnail_path TEXT");
             database.execSQL("ALTER TABLE plants ADD COLUMN high_res_thumbnail_path TEXT");
             Log.i("AppDatabase", "Migration 2->3: added medium_thumbnail_path and high_res_thumbnail_path columns");
+        }
+    };
+
+    static final Migration MIGRATION_3_4 = new Migration(3, 4) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase database) {
+            database.execSQL("ALTER TABLE analyses ADD COLUMN parse_status TEXT NOT NULL DEFAULT 'OK'");
+            database.execSQL("ALTER TABLE analyses ADD COLUMN re_analyzed_at INTEGER");
+            Log.i("AppDatabase", "Migration 3->4: added parse_status and re_analyzed_at columns to analyses");
         }
     };
 
@@ -53,7 +62,7 @@ public abstract class AppDatabase extends RoomDatabase {
                             AppDatabase.class,
                             "leafiq_database"
                     )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .addCallback(new Callback() {
                         @Override
                         public void onOpen(@NonNull SupportSQLiteDatabase db) {

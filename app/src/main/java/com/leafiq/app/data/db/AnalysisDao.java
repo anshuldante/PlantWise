@@ -59,4 +59,13 @@ public interface AnalysisDao {
             "WHERE analyses.plant_id = :plantId " +
             "ORDER BY analyses.created_at DESC")
     LiveData<List<AnalysisWithPlant>> getAnalysesWithPlantForPlant(String plantId);
+
+    @Query("SELECT * FROM analyses WHERE parse_status = 'OK' ORDER BY created_at DESC LIMIT :limit")
+    List<Analysis> getAnalysesNeedingScan(int limit);
+
+    @Query("UPDATE analyses SET parse_status = :status WHERE id = :id")
+    void updateParseStatus(String id, String status);
+
+    @Query("UPDATE analyses SET re_analyzed_at = :timestamp, parse_status = 'OK' WHERE id = :id")
+    void markReAnalyzed(String id, long timestamp);
 }
