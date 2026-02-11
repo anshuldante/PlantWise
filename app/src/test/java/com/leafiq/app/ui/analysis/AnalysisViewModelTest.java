@@ -401,4 +401,36 @@ public class AnalysisViewModelTest {
         }
         return null;
     }
+
+    // ==================== New field tests (Plans 03 and 05) ====================
+
+    /**
+     * Tests for quickDiagnosis and qualityOverridden fields added in plans 12-03 and 12-05.
+     * These verify the public API exists and is callable.
+     * State preservation is tested via integration tests since stubOnly() mocks don't preserve fields.
+     */
+
+    @Test
+    public void quickDiagnosis_apiExists() throws Exception {
+        // Verify setQuickDiagnosis and isQuickDiagnosis methods exist via reflection
+        AnalysisViewModel.class.getDeclaredMethod("setQuickDiagnosis", boolean.class);
+        AnalysisViewModel.class.getDeclaredMethod("isQuickDiagnosis");
+
+        // Methods exist and are callable
+        AnalysisViewModel instance = createInstance();
+        instance.setQuickDiagnosis(true);
+        instance.setQuickDiagnosis(false);
+        instance.isQuickDiagnosis();
+    }
+
+    @Test
+    public void qualityOverridden_apiExists() throws Exception {
+        // Verify setQualityOverridden method exists via reflection
+        AnalysisViewModel.class.getDeclaredMethod("setQualityOverridden", boolean.class);
+
+        // Method exists and is callable
+        AnalysisViewModel instance = createInstance();
+        instance.setQualityOverridden(true);
+        instance.setQualityOverridden(false);
+    }
 }
