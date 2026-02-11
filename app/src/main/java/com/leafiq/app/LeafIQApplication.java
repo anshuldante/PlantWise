@@ -12,6 +12,7 @@ import com.leafiq.app.data.repository.PlantRepository;
 import com.leafiq.app.util.AppExecutors;
 import com.leafiq.app.util.FileCleanupUtils;
 import com.leafiq.app.util.KeystoreHelper;
+import com.leafiq.app.util.ParseScanHelper;
 
 import java.io.File;
 import java.io.IOException;
@@ -90,6 +91,15 @@ public class LeafIQApplication extends Application {
                 db.careCompletionDao(),
                 appExecutors.io()
         );
+
+        // Background parse scan: incrementally classify existing analyses
+        appExecutors.io().execute(() -> {
+            try {
+                ParseScanHelper.scanOnLaunch(db.analysisDao());
+            } catch (Exception e) {
+                Log.w("AnalysisParser", "Background parse scan failed: " + e.getMessage());
+            }
+        });
 
         // Create notification channel for care reminders
         NotificationHelper.createNotificationChannel(this);
