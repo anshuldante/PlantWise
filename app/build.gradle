@@ -43,6 +43,10 @@ android {
     sourceSets {
         androidTest.assets.srcDirs += files("$projectDir/schemas".toString())
     }
+
+    buildFeatures {
+        viewBinding = true
+    }
 }
 
 dependencies {
