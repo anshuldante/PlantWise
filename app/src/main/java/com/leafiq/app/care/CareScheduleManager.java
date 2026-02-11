@@ -185,11 +185,30 @@ public class CareScheduleManager {
 
         // Schedule exact alarm
         if (alarmManager != null) {
-            alarmManager.setExactAndAllowWhileIdle(
-                    AlarmManager.RTC_WAKEUP,
-                    alarmTimeMillis,
-                    pendingIntent
-            );
+            // Check if we can schedule exact alarms (API 31+)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                if (alarmManager.canScheduleExactAlarms()) {
+                    alarmManager.setExactAndAllowWhileIdle(
+                            AlarmManager.RTC_WAKEUP,
+                            alarmTimeMillis,
+                            pendingIntent
+                    );
+                } else {
+                    // Fall back to inexact alarm if permission not granted
+                    alarmManager.setAndAllowWhileIdle(
+                            AlarmManager.RTC_WAKEUP,
+                            alarmTimeMillis,
+                            pendingIntent
+                    );
+                }
+            } else {
+                // Pre-Android 12, no permission check needed
+                alarmManager.setExactAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP,
+                        alarmTimeMillis,
+                        pendingIntent
+                );
+            }
         }
     }
 
