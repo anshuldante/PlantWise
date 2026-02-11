@@ -72,9 +72,25 @@ public class FullAnalysisHistoryAdapter extends RecyclerView.Adapter<RecyclerVie
     public void setAnalyses(List<Analysis> analyses) {
         items.clear();
 
+        if (analyses != null && !analyses.isEmpty()) {
+            items.addAll(buildHistoryItems(analyses));
+        }
+
+        notifyDataSetChanged();
+    }
+
+    /**
+     * Package-private method to build history items from analyses.
+     * Testable without Android dependencies.
+     *
+     * @param analyses List of analyses sorted by createdAt DESC (newest first)
+     * @return List of HistoryItem objects with headers and trend arrows
+     */
+    static List<HistoryItem> buildHistoryItems(List<Analysis> analyses) {
+        List<HistoryItem> result = new ArrayList<>();
+
         if (analyses == null || analyses.isEmpty()) {
-            notifyDataSetChanged();
-            return;
+            return result;
         }
 
         SimpleDateFormat monthFormat = new SimpleDateFormat("MMMM yyyy", Locale.getDefault());
@@ -90,7 +106,7 @@ public class FullAnalysisHistoryAdapter extends RecyclerView.Adapter<RecyclerVie
                 HistoryItem header = new HistoryItem();
                 header.type = TYPE_HEADER;
                 header.monthLabel = month;
-                items.add(header);
+                result.add(header);
             }
 
             // Add analysis item with trend computation
@@ -116,10 +132,10 @@ public class FullAnalysisHistoryAdapter extends RecyclerView.Adapter<RecyclerVie
                 item.trendDirection = -2;
             }
 
-            items.add(item);
+            result.add(item);
         }
 
-        notifyDataSetChanged();
+        return result;
     }
 
     /**

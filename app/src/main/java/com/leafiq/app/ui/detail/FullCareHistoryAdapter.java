@@ -64,9 +64,26 @@ public class FullCareHistoryAdapter extends RecyclerView.Adapter<RecyclerView.Vi
     public void setData(List<CareCompletion> completions, Map<String, CareSchedule> scheduleMap) {
         items.clear();
 
+        if (completions != null && !completions.isEmpty()) {
+            items.addAll(buildHistoryItems(completions, scheduleMap));
+        }
+
+        notifyDataSetChanged();
+    }
+
+    /**
+     * Package-private method to build history items from care completions.
+     * Testable without Android dependencies.
+     *
+     * @param completions List of completions sorted by completedAt DESC (newest first)
+     * @param scheduleMap Map of scheduleId -> CareSchedule for status computation
+     * @return List of HistoryItem objects with headers and status labels
+     */
+    static List<HistoryItem> buildHistoryItems(List<CareCompletion> completions, Map<String, CareSchedule> scheduleMap) {
+        List<HistoryItem> result = new ArrayList<>();
+
         if (completions == null || completions.isEmpty()) {
-            notifyDataSetChanged();
-            return;
+            return result;
         }
 
         // Group completions by scheduleId for status computation
@@ -89,7 +106,7 @@ public class FullCareHistoryAdapter extends RecyclerView.Adapter<RecyclerView.Vi
                 HistoryItem header = new HistoryItem();
                 header.type = TYPE_HEADER;
                 header.monthLabel = month;
-                items.add(header);
+                result.add(header);
             }
 
             // Add care completion item with status computation
@@ -98,7 +115,7 @@ public class FullCareHistoryAdapter extends RecyclerView.Adapter<RecyclerView.Vi
             item.completion = completion;
 
             // Resolve care type from schedule
-            CareSchedule schedule = scheduleMap.get(completion.scheduleId);
+            CareSchedule schedule = scheduleMap != null ? scheduleMap.get(completion.scheduleId) : null;
             if (schedule != null) {
                 item.careType = schedule.careType;
 
@@ -136,10 +153,10 @@ public class FullCareHistoryAdapter extends RecyclerView.Adapter<RecyclerView.Vi
                 item.statusColor = R.color.health_good;
             }
 
-            items.add(item);
+            result.add(item);
         }
 
-        notifyDataSetChanged();
+        return result;
     }
 
     /**
