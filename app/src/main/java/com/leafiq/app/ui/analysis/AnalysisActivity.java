@@ -358,6 +358,7 @@ public class AnalysisActivity extends AppCompatActivity {
      * Validates photo quality before starting analysis.
      * Checks brightness, blur, and resolution on background thread.
      * Uses lenient thresholds for Quick Diagnosis mode.
+     * Delegates flow decisions to AnalysisCoordinator.
      */
     private void validatePhotoQuality() {
         executor.execute(() -> {
@@ -371,10 +372,23 @@ public class AnalysisActivity extends AppCompatActivity {
                         result.blurScore, result.brightnessScore, result.passed, result.overrideAllowed, isQuickDiagnosis));
 
                 runOnUiThread(() -> {
-                    if (result.passed) {
-                        proceedToAnalysis();
-                    } else {
-                        showQualityWarning(result);
+                    // Delegate decision to AnalysisCoordinator
+                    AnalysisCoordinator.QualityAction action =
+                        AnalysisCoordinator.evaluateQuality(result);
+
+                    switch (action) {
+                        case PROCEED_TO_ANALYSIS:
+                            proceedToAnalysis();
+                            break;
+                        case SHOW_BORDERLINE_WARNING:
+                            showQualityWarning(result);
+                            break;
+                        case SHOW_EGREGIOUS_REJECTION:
+                            showQualityRejection(result);
+                            break;
+                        case SKIP_CHECK_ERROR:
+                            proceedToAnalysis();
+                            break;
                     }
                 });
             } catch (Exception e) {
@@ -397,43 +411,48 @@ public class AnalysisActivity extends AppCompatActivity {
     }
 
     /**
-     * Shows quality warning dialog with two-tier rejection UX.
-     * Borderline failures allow override, egregious failures do not.
+     * Shows quality warning dialog for borderline failures (override allowed).
+     * Displays tips and "Use Anyway" option.
      * @param result Quality check result with issue details
      */
     private void showQualityWarning(PhotoQualityChecker.QualityResult result) {
-        if (result.overrideAllowed) {
-            // Borderline failure - show override option with tips
-            String messageWithTips = result.message + "\n\nTips:\n" +
-                    "• Hold camera steady for sharper photos\n" +
-                    "• Ensure good lighting on the plant\n" +
-                    "• Get close enough to see leaf details";
+        // Borderline failure - show override option with tips
+        String messageWithTips = result.message + "\n\nTips:\n" +
+                "• Hold camera steady for sharper photos\n" +
+                "• Ensure good lighting on the plant\n" +
+                "• Get close enough to see leaf details";
 
-            new AlertDialog.Builder(this)
-                .setTitle("Photo Quality Issue")
-                .setMessage(messageWithTips)
-                .setPositiveButton("Use Anyway", (d, w) -> {
-                    qualityOverridden = true;
-                    viewModel.setQualityOverridden(true);
-                    Log.i("QualityCheck", String.format("photo_quality_override_used: issueType=%s blur=%.1f brightness=%.2f",
-                            result.issueType, result.blurScore, result.brightnessScore));
-                    proceedToAnalysis();
-                })
-                .setNegativeButton("Choose Different Photo", (d, w) -> finish())
-                .setCancelable(false)
-                .show();
-        } else {
-            // Egregious failure - no override option
-            String messageWithGuidance = result.message + "\n\n" +
-                    "This photo's quality is too low for reliable analysis. Please take a new photo with better conditions.";
+        new AlertDialog.Builder(this)
+            .setTitle("Photo Quality Issue")
+            .setMessage(messageWithTips)
+            .setPositiveButton("Use Anyway", (d, w) -> {
+                qualityOverridden = true;
+                viewModel.setQualityOverridden(true);
+                Log.i("QualityCheck", String.format("photo_quality_override_used: issueType=%s blur=%.1f brightness=%.2f",
+                        result.issueType, result.blurScore, result.brightnessScore));
+                proceedToAnalysis();
+            })
+            .setNegativeButton("Choose Different Photo", (d, w) -> finish())
+            .setCancelable(false)
+            .show();
+    }
 
-            new AlertDialog.Builder(this)
-                .setTitle("Photo Cannot Be Analyzed")
-                .setMessage(messageWithGuidance)
-                .setPositiveButton("Choose Different Photo", (d, w) -> finish())
-                .setCancelable(false)
-                .show();
-        }
+    /**
+     * Shows quality rejection dialog for egregious failures (no override).
+     * User must choose a different photo.
+     * @param result Quality check result with issue details
+     */
+    private void showQualityRejection(PhotoQualityChecker.QualityResult result) {
+        // Egregious failure - no override option
+        String messageWithGuidance = result.message + "\n\n" +
+                "This photo's quality is too low for reliable analysis. Please take a new photo with better conditions.";
+
+        new AlertDialog.Builder(this)
+            .setTitle("Photo Cannot Be Analyzed")
+            .setMessage(messageWithGuidance)
+            .setPositiveButton("Choose Different Photo", (d, w) -> finish())
+            .setCancelable(false)
+            .show();
     }
 
     /**
