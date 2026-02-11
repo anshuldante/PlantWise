@@ -136,4 +136,17 @@
     <string name="nickname_helper">Give your plant a name</string>
     <string name="location_label">Location (optional)</string>
     <string name="location_helper">e.g., Living Room</string>
+
+    <!-- Photo Tips -->
+    <string name="photo_tips_title">Photo Tips</string>
+    <string name="photo_tips_subtitle">For the best analysis results:</string>
+    <string name="tip_lighting">Good lighting</string>
+    <string name="tip_lighting_helper">Natural light works best, avoid harsh shadows</string>
+    <string name="tip_blur">Hold steady</string>
+    <string name="tip_blur_helper">Keep your phone still for a clear photo</string>
+    <string name="tip_framing">Fill the frame</string>
+    <string name="tip_framing_helper">Get close enough that the plant fills most of the photo</string>
+    <string name="tip_whole_plant">Show the whole plant</string>
+    <string name="tip_whole_plant_helper">Include leaves, stems, and any problem areas</string>
+    <string name="photo_tips_got_it">Got It</string>
 </resources>
