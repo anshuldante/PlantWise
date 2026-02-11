@@ -71,7 +71,6 @@ public class PlantCardAdapter extends ListAdapter<Plant, PlantCardAdapter.PlantV
     static class PlantViewHolder extends RecyclerView.ViewHolder {
         private final ImageView thumbnail;
         private final TextView name;
-        private final TextView scientificName;
         private final TextView location;
         private final TextView lastAnalyzed;
         private final TextView healthScore;
@@ -80,7 +79,6 @@ public class PlantCardAdapter extends ListAdapter<Plant, PlantCardAdapter.PlantV
             super(itemView);
             thumbnail = itemView.findViewById(R.id.plant_thumbnail);
             name = itemView.findViewById(R.id.plant_name);
-            scientificName = itemView.findViewById(R.id.plant_scientific_name);
             location = itemView.findViewById(R.id.plant_location);
             lastAnalyzed = itemView.findViewById(R.id.last_analyzed);
             healthScore = itemView.findViewById(R.id.health_score_badge);
@@ -106,9 +104,6 @@ public class PlantCardAdapter extends ListAdapter<Plant, PlantCardAdapter.PlantV
             String displayName = plant.nickname != null && !plant.nickname.isEmpty()
                 ? plant.nickname : plant.commonName;
             name.setText(displayName != null ? displayName : "Unknown Plant");
-
-            // Set scientific name
-            scientificName.setText(plant.scientificName != null ? plant.scientificName : "");
 
             // Set location
             if (plant.location != null && !plant.location.isEmpty()) {

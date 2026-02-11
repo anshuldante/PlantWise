@@ -7,6 +7,7 @@
         android:id="@+id/action_care_overview"
         android:title="@string/care_overview"
         android:icon="@android:drawable/ic_menu_my_calendar"
+        app:iconTint="@color/md_theme_onPrimary"
         app:showAsAction="ifRoom" />
 
     <!-- Settings - in overflow menu -->
@@ -14,6 +15,7 @@
         android:id="@+id/action_settings"
         android:title="@string/settings"
         android:icon="@android:drawable/ic_menu_manage"
+        app:iconTint="@color/md_theme_onPrimary"
         app:showAsAction="never" />
 
 </menu>
