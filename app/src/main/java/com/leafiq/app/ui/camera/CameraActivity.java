@@ -27,6 +27,7 @@ import androidx.core.content.ContextCompat;
 
 import com.leafiq.app.R;
 import com.leafiq.app.ui.analysis.AnalysisActivity;
+import com.leafiq.app.util.PhotoTipsManager;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.common.util.concurrent.ListenableFuture;
 
@@ -50,11 +51,12 @@ public class CameraActivity extends AppCompatActivity {
     private ImageCapture imageCapture;
     private ExecutorService cameraExecutor;
     private String plantId;
+    private PhotoTipsManager tipsManager;
 
     private final ActivityResultLauncher<String> requestCameraPermission =
         registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
             if (isGranted) {
-                startCamera();
+                checkAndShowTipsOrStartCamera();
             } else {
                 showPermissionDeniedDialog();
             }
@@ -81,13 +83,14 @@ public class CameraActivity extends AppCompatActivity {
         progress = findViewById(R.id.progress);
 
         cameraExecutor = Executors.newSingleThreadExecutor();
+        tipsManager = new PhotoTipsManager(this);
 
         captureButton.setOnClickListener(v -> takePhoto());
         galleryButton.setOnClickListener(v -> openGallery());
         closeButton.setOnClickListener(v -> finish());
 
         if (checkCameraPermission()) {
-            startCamera();
+            checkAndShowTipsOrStartCamera();
         } else {
             requestCameraPermission.launch(Manifest.permission.CAMERA);
         }
@@ -96,6 +99,20 @@ public class CameraActivity extends AppCompatActivity {
     private boolean checkCameraPermission() {
         return ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
             == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void checkAndShowTipsOrStartCamera() {
+        if (tipsManager.shouldShowTips()) {
+            String failureReason = tipsManager.getQualityFailureReason();
+            PhotoTipsBottomSheet sheet = PhotoTipsBottomSheet.newInstance(failureReason);
+            sheet.setOnTipsDismissedListener(() -> {
+                tipsManager.markTipsSeen();
+                startCamera();
+            });
+            sheet.show(getSupportFragmentManager(), "photo_tips");
+        } else {
+            startCamera();
+        }
     }
 
     private void startCamera() {

@@ -28,6 +28,7 @@ import com.leafiq.app.data.model.PlantAnalysisResult;
 import com.leafiq.app.databinding.ActivityAnalysisBinding;
 import com.leafiq.app.util.KeystoreHelper;
 import com.leafiq.app.util.PhotoQualityChecker;
+import com.leafiq.app.util.PhotoTipsManager;
 import com.bumptech.glide.Glide;
 import com.google.android.material.snackbar.Snackbar;
 
@@ -416,6 +417,9 @@ public class AnalysisActivity extends AppCompatActivity {
      * @param result Quality check result with issue details
      */
     private void showQualityWarning(PhotoQualityChecker.QualityResult result) {
+        // Record quality failure to show contextual tips next time
+        new PhotoTipsManager(this).recordQualityFailure(result.issueType);
+
         // Borderline failure - show override option with tips
         String messageWithTips = result.message + "\n\nTips:\n" +
                 "• Hold camera steady for sharper photos\n" +
@@ -443,6 +447,9 @@ public class AnalysisActivity extends AppCompatActivity {
      * @param result Quality check result with issue details
      */
     private void showQualityRejection(PhotoQualityChecker.QualityResult result) {
+        // Record quality failure to show contextual tips next time
+        new PhotoTipsManager(this).recordQualityFailure(result.issueType);
+
         // Egregious failure - no override option
         String messageWithGuidance = result.message + "\n\n" +
                 "This photo's quality is too low for reliable analysis. Please take a new photo with better conditions.";
