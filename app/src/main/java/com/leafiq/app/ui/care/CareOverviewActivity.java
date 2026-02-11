@@ -158,7 +158,7 @@ public class CareOverviewActivity extends AppCompatActivity {
     }
 
     private void handleDone(CareOverviewViewModel.CareTaskItem item) {
-        viewModel.markComplete(item.schedule.id, new PlantRepository.RepositoryCallback<Void>() {
+        viewModel.markComplete(item.schedule.id, new PlantRepository.RepositoryCallback<>() {
             @Override
             public void onSuccess(Void result) {
                 runOnUiThread(() -> {
@@ -174,9 +174,7 @@ public class CareOverviewActivity extends AppCompatActivity {
 
             @Override
             public void onError(Exception e) {
-                runOnUiThread(() -> {
-                    Toast.makeText(CareOverviewActivity.this, "Error marking complete", Toast.LENGTH_SHORT).show();
-                });
+                runOnUiThread(() -> Toast.makeText(CareOverviewActivity.this, "Error marking complete", Toast.LENGTH_SHORT).show());
             }
         });
     }
@@ -191,23 +189,17 @@ public class CareOverviewActivity extends AppCompatActivity {
 
         new AlertDialog.Builder(this)
                 .setTitle(R.string.choose_snooze)
-                .setItems(options, (dialog, which) -> {
-                    viewModel.snooze(item.schedule.id, which, new PlantRepository.RepositoryCallback<Void>() {
-                        @Override
-                        public void onSuccess(Void result) {
-                            runOnUiThread(() -> {
-                                Toast.makeText(CareOverviewActivity.this, "Snoozed", Toast.LENGTH_SHORT).show();
-                            });
-                        }
+                .setItems(options, (dialog, which) -> viewModel.snooze(item.schedule.id, which, new PlantRepository.RepositoryCallback<>() {
+                    @Override
+                    public void onSuccess(Void result) {
+                        runOnUiThread(() -> Toast.makeText(CareOverviewActivity.this, "Snoozed", Toast.LENGTH_SHORT).show());
+                    }
 
-                        @Override
-                        public void onError(Exception e) {
-                            runOnUiThread(() -> {
-                                Toast.makeText(CareOverviewActivity.this, "Error snoozing", Toast.LENGTH_SHORT).show();
-                            });
-                        }
-                    });
-                })
+                    @Override
+                    public void onError(Exception e) {
+                        runOnUiThread(() -> Toast.makeText(CareOverviewActivity.this, "Error snoozing", Toast.LENGTH_SHORT).show());
+                    }
+                }))
                 .setNegativeButton(R.string.cancel, null)
                 .show();
     }

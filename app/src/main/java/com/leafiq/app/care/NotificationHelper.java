@@ -6,7 +6,6 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
-import android.os.Build;
 import android.service.notification.StatusBarNotification;
 import android.util.Log;
 
@@ -14,7 +13,6 @@ import androidx.core.app.NotificationCompat;
 
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.resource.bitmap.CircleCrop;
-import com.leafiq.app.MainActivity;
 import com.leafiq.app.R;
 import com.leafiq.app.data.entity.CareSchedule;
 import com.leafiq.app.ui.care.CareOverviewActivity;
@@ -57,19 +55,17 @@ public class NotificationHelper {
      * @param context Application context
      */
     public static void createNotificationChannel(Context context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(
-                    CHANNEL_ID,
-                    CHANNEL_NAME,
-                    NotificationManager.IMPORTANCE_DEFAULT
-            );
-            channel.setDescription(CHANNEL_DESC);
+      NotificationChannel channel = new NotificationChannel(
+          CHANNEL_ID,
+          CHANNEL_NAME,
+          NotificationManager.IMPORTANCE_DEFAULT
+      );
+      channel.setDescription(CHANNEL_DESC);
 
-            NotificationManager notificationManager = context.getSystemService(NotificationManager.class);
-            if (notificationManager != null) {
-                notificationManager.createNotificationChannel(channel);
-            }
-        }
+      NotificationManager notificationManager = context.getSystemService(NotificationManager.class);
+      if (notificationManager != null) {
+          notificationManager.createNotificationChannel(channel);
+      }
     }
 
     /**

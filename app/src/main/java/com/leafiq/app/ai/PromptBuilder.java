@@ -97,20 +97,15 @@ public class PromptBuilder {
     }
 
     public static String buildQuickDiagnosisPrompt() {
-        StringBuilder sb = new StringBuilder();
-        sb.append("You are an expert botanist. ");
-        sb.append("Quickly assess this plant's health from the photo. ");
-        sb.append("DO NOT identify the plant species — focus ONLY on health assessment.\n\n");
-
-        sb.append("Respond ONLY with valid JSON in this exact format ");
-        sb.append("(no markdown, no backticks, no explanatory text before or after):\n");
-        sb.append(getQuickDiagnosisJsonTemplate());
-
-        sb.append("\n\nBe specific about visible symptoms. ");
-        sb.append("If the plant looks healthy, say so. ");
-        sb.append("If you can see the pot, soil, or surroundings, factor those in.");
-
-        return sb.toString();
+      return "You are an expert botanist. " +
+          "Quickly assess this plant's health from the photo. " +
+          "DO NOT identify the plant species — focus ONLY on health assessment.\n\n" +
+          "Respond ONLY with valid JSON in this exact format " +
+          "(no markdown, no backticks, no explanatory text before or after):\n" +
+          getQuickDiagnosisJsonTemplate() +
+          "\n\nBe specific about visible symptoms. " +
+          "If the plant looks healthy, say so. " +
+          "If you can see the pot, soil, or surroundings, factor those in.";
     }
 
     private static String getQuickDiagnosisJsonTemplate() {

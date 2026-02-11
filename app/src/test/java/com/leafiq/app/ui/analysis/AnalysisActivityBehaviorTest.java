@@ -94,48 +94,12 @@ public class AnalysisActivityBehaviorTest {
 
     @Test
     public void qualityResult_passed_proceedsToAnalysis() {
-        PhotoQualityChecker.QualityResult result = PhotoQualityChecker.QualityResult.ok(50f, 0.5f);
+        PhotoQualityChecker.QualityResult result = PhotoQualityChecker.QualityResult.ok(0.5f);
 
         assertThat(result.passed).isTrue();
         assertThat(result.overrideAllowed).isFalse();
         assertThat(result.issueSeverity).isNull();
-        assertThat(result.blurScore).isEqualTo(50f);
         assertThat(result.brightnessScore).isEqualTo(0.5f);
-    }
-
-    @Test
-    public void qualityResult_borderlineBlur_allowsOverride() {
-        PhotoQualityChecker.QualityResult result = PhotoQualityChecker.QualityResult.fail(
-                "Photo appears blurry",
-                "blur",
-                true,  // override allowed
-                "borderline",
-                40f,  // Blur score between EGREGIOUS (15) and MIN (45)
-                0.5f
-        );
-
-        assertThat(result.passed).isFalse();
-        assertThat(result.overrideAllowed).isTrue();
-        assertThat(result.issueSeverity).isEqualTo("borderline");
-        assertThat(result.issueType).isEqualTo("blur");
-        assertThat(result.message).contains("blurry");
-    }
-
-    @Test
-    public void qualityResult_egregiousBlur_blocksOverride() {
-        PhotoQualityChecker.QualityResult result = PhotoQualityChecker.QualityResult.egregiousFail(
-                "Photo is extremely blurry and unusable",
-                "blur",
-                10f,  // Blur score below EGREGIOUS threshold (15)
-                0.5f
-        );
-
-        assertThat(result.passed).isFalse();
-        assertThat(result.overrideAllowed).isFalse();
-        assertThat(result.issueSeverity).isEqualTo("egregious");
-        assertThat(result.issueType).isEqualTo("blur");
-        assertThat(result.message).contains("extremely blurry");
-        assertThat(result.message).contains("unusable");
     }
 
     @Test
@@ -145,7 +109,6 @@ public class AnalysisActivityBehaviorTest {
                 "dark",
                 true,  // override allowed
                 "borderline",
-                50f,
                 0.10f  // Brightness between EGREGIOUS (0.05) and MIN (0.15)
         );
 
@@ -161,7 +124,6 @@ public class AnalysisActivityBehaviorTest {
         PhotoQualityChecker.QualityResult result = PhotoQualityChecker.QualityResult.egregiousFail(
                 "Photo is extremely dark and unusable",
                 "dark",
-                50f,
                 0.03f  // Brightness below EGREGIOUS threshold (0.05)
         );
 
@@ -174,24 +136,21 @@ public class AnalysisActivityBehaviorTest {
 
     @Test
     public void qualityResult_quickDiagnosisMode_morePermissive() {
-        // Quick Diagnosis thresholds are more lenient:
-        // QUICK_DIAGNOSIS_BLUR_SCORE = 30f (vs standard 45f)
+        // Quick Diagnosis brightness thresholds are more lenient:
         // QUICK_DIAGNOSIS_MIN_BRIGHTNESS = 0.12f (vs standard 0.15f)
 
-        // A photo with blur=35 would fail standard mode but pass Quick mode
+        // A photo with brightness=0.13 would fail standard mode but pass Quick mode
         PhotoQualityChecker.QualityResult standardFail = PhotoQualityChecker.QualityResult.fail(
-                "Photo appears blurry",
-                "blur",
+                "Photo is too dark",
+                "dark",
                 true,
                 "borderline",
-                35f,  // Below standard MIN_BLUR_SCORE (45) but above QUICK (30)
-                0.5f
+                0.13f  // Below standard MIN_BRIGHTNESS (0.15) but above QUICK (0.12)
         );
 
-        // In Quick mode, this would be ok() - just testing the decision logic
         assertThat(standardFail.passed).isFalse();
-        assertThat(standardFail.blurScore).isLessThan(45f);  // Would fail standard
-        assertThat(standardFail.blurScore).isGreaterThan(30f);  // Would pass Quick
+        assertThat(standardFail.brightnessScore).isLessThan(0.15f);  // Would fail standard
+        assertThat(standardFail.brightnessScore).isGreaterThan(0.12f);  // Would pass Quick
     }
 
     // ==================== Parse failure behavior tests ====================

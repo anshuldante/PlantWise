@@ -11,10 +11,8 @@ import java.util.Locale;
 /**
  * Pure function that maps domain state to UI state.
  * No Android dependencies, no side effects, trivially testable.
- *
  * Answers: "Given this analysis data, parse status, and context,
  * what should the UI display?"
- *
  * Decision tree:
  * - OK parse status: success with optional disclaimers
  * - PARTIAL parse status: successWithFallback with "Some details couldn't be loaded"
@@ -79,15 +77,13 @@ public class AnalysisStateMapper {
     /**
      * Determines if re-analyze button should be shown.
      * Show button only if parse failed AND photo exists (can retry).
-     *
      * @param parseStatus Parse status: "OK", "PARTIAL", "FAILED", "EMPTY"
      * @param photoPath Path to analysis photo
      * @return true if re-analyze button should be shown
      */
     public static boolean shouldShowReanalyze(String parseStatus, String photoPath) {
-        if ("OK".equals(parseStatus)) return false;
-        if (photoPath == null || photoPath.isEmpty()) return false;
-        return true;
+      if ("OK".equals(parseStatus)) return false;
+      return photoPath != null && !photoPath.isEmpty();
     }
 
     /**

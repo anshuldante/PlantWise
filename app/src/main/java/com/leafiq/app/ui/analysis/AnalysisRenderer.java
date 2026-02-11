@@ -7,7 +7,6 @@ import android.widget.TextView;
 
 import androidx.core.content.ContextCompat;
 
-import com.google.android.material.card.MaterialCardView;
 import android.graphics.drawable.GradientDrawable;
 
 import com.leafiq.app.R;

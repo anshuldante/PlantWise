@@ -10,7 +10,6 @@ import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.leafiq.app.R;
-import com.leafiq.app.util.DateFormatter;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,12 +25,10 @@ public class CareCompletionAdapter extends RecyclerView.Adapter<CareCompletionAd
     }
 
     private List<CareOverviewViewModel.CareCompletionItem> items = new ArrayList<>();
-    private final Context context;
-    private final OnCompletionClickListener listener;
+  private final OnCompletionClickListener listener;
 
     public CareCompletionAdapter(Context context, OnCompletionClickListener listener) {
-        this.context = context;
-        this.listener = listener;
+      this.listener = listener;
     }
 
     public void setItems(List<CareOverviewViewModel.CareCompletionItem> items) {
