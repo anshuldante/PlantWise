@@ -18,7 +18,7 @@ public class AnalysisCoordinatorTest {
 
     @Test
     public void evaluateQuality_passed_proceedToAnalysis() {
-        PhotoQualityChecker.QualityResult result = PhotoQualityChecker.QualityResult.ok(50f, 0.5f);
+        PhotoQualityChecker.QualityResult result = PhotoQualityChecker.QualityResult.ok(0.5f);
 
         AnalysisCoordinator.QualityAction action = AnalysisCoordinator.evaluateQuality(result);
 
@@ -28,7 +28,7 @@ public class AnalysisCoordinatorTest {
     @Test
     public void evaluateQuality_borderline_showWarning() {
         PhotoQualityChecker.QualityResult result =
-            PhotoQualityChecker.QualityResult.fail("Photo appears blurry", "blur", true, "borderline", 40f, 0.5f);
+            PhotoQualityChecker.QualityResult.fail("Photo is too dark", "dark", true, "borderline", 0.12f);
 
         AnalysisCoordinator.QualityAction action = AnalysisCoordinator.evaluateQuality(result);
 
@@ -38,7 +38,7 @@ public class AnalysisCoordinatorTest {
     @Test
     public void evaluateQuality_egregious_showRejection() {
         PhotoQualityChecker.QualityResult result =
-            PhotoQualityChecker.QualityResult.fail("Photo is extremely blurry", "blur", false, "egregious", 10f, 0.5f);
+            PhotoQualityChecker.QualityResult.fail("Photo is extremely dark", "dark", false, "egregious", 0.03f);
 
         AnalysisCoordinator.QualityAction action = AnalysisCoordinator.evaluateQuality(result);
 
@@ -53,9 +53,9 @@ public class AnalysisCoordinatorTest {
     }
 
     @Test
-    public void evaluateQuality_egregiousBlur_showRejection() {
+    public void evaluateQuality_egregiousDark_showRejection() {
         PhotoQualityChecker.QualityResult result =
-            PhotoQualityChecker.QualityResult.egregiousFail("Extremely blurry", "blur", 10f, 0.5f);
+            PhotoQualityChecker.QualityResult.egregiousFail("Extremely dark", "dark", 0.03f);
 
         AnalysisCoordinator.QualityAction action = AnalysisCoordinator.evaluateQuality(result);
 
@@ -70,7 +70,6 @@ public class AnalysisCoordinatorTest {
     public void evaluateReanalyze_useOriginal_returnsUseOriginal() {
         AnalysisCoordinator.ReanalyzeAction action = AnalysisCoordinator.evaluateReanalyze(
             /* useOriginalPhoto */ true,
-            /* originalWasQuick */ false,
             /* userChoseUpgrade */ false,
             /* userChoseAnalyzeAsNew */ false
         );
@@ -82,7 +81,6 @@ public class AnalysisCoordinatorTest {
     public void evaluateReanalyze_takeNewPhoto_returnsTakeNew() {
         AnalysisCoordinator.ReanalyzeAction action = AnalysisCoordinator.evaluateReanalyze(
             /* useOriginalPhoto */ false,
-            /* originalWasQuick */ false,
             /* userChoseUpgrade */ false,
             /* userChoseAnalyzeAsNew */ false
         );
@@ -94,7 +92,6 @@ public class AnalysisCoordinatorTest {
     public void evaluateReanalyze_upgradeToFull_returnsUpgrade() {
         AnalysisCoordinator.ReanalyzeAction action = AnalysisCoordinator.evaluateReanalyze(
             /* useOriginalPhoto */ false, // New photo
-            /* originalWasQuick */ true,
             /* userChoseUpgrade */ true,
             /* userChoseAnalyzeAsNew */ false
         );
@@ -107,7 +104,6 @@ public class AnalysisCoordinatorTest {
         // "Analyze as new" takes precedence over all other options
         AnalysisCoordinator.ReanalyzeAction action = AnalysisCoordinator.evaluateReanalyze(
             /* useOriginalPhoto */ true,
-            /* originalWasQuick */ false,
             /* userChoseUpgrade */ false,
             /* userChoseAnalyzeAsNew */ true
         );
@@ -117,10 +113,8 @@ public class AnalysisCoordinatorTest {
 
     @Test
     public void evaluateReanalyze_quickOriginal_defaultUseOriginal() {
-        // Original was Quick Diagnosis, user chose to use original photo
         AnalysisCoordinator.ReanalyzeAction action = AnalysisCoordinator.evaluateReanalyze(
             /* useOriginalPhoto */ true,
-            /* originalWasQuick */ true,
             /* userChoseUpgrade */ false,
             /* userChoseAnalyzeAsNew */ false
         );
@@ -134,7 +128,6 @@ public class AnalysisCoordinatorTest {
         // useOriginalPhoto takes precedence (checked first in method)
         AnalysisCoordinator.ReanalyzeAction action = AnalysisCoordinator.evaluateReanalyze(
             /* useOriginalPhoto */ true,
-            /* originalWasQuick */ true,
             /* userChoseUpgrade */ true,
             /* userChoseAnalyzeAsNew */ false
         );

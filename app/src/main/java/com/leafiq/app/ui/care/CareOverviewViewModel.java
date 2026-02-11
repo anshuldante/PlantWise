@@ -9,7 +9,6 @@ import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MediatorLiveData;
 
 import com.leafiq.app.LeafIQApplication;
-import com.leafiq.app.care.CareScheduleManager;
 import com.leafiq.app.data.entity.CareSchedule;
 import com.leafiq.app.data.entity.Plant;
 import com.leafiq.app.data.model.CareCompletionWithPlantInfo;
@@ -29,7 +28,6 @@ import java.util.concurrent.Executor;
 public class CareOverviewViewModel extends AndroidViewModel {
 
     private final PlantRepository repository;
-    private final CareScheduleManager careScheduleManager;
     private final Executor ioExecutor;
 
     private final MediatorLiveData<List<CareTaskItem>> todayTasks;
@@ -77,7 +75,6 @@ public class CareOverviewViewModel extends AndroidViewModel {
 
         LeafIQApplication app = (LeafIQApplication) application;
         this.repository = app.getPlantRepository();
-        this.careScheduleManager = app.getCareScheduleManager();
         this.ioExecutor = app.getAppExecutors().io();
 
         this.todayTasks = new MediatorLiveData<>();
@@ -184,7 +181,6 @@ public class CareOverviewViewModel extends AndroidViewModel {
         ioExecutor.execute(() -> {
             try {
                 // Calculate time ranges
-                Calendar now = Calendar.getInstance();
                 Calendar endOfToday = Calendar.getInstance();
                 endOfToday.set(Calendar.HOUR_OF_DAY, 23);
                 endOfToday.set(Calendar.MINUTE, 59);
@@ -249,22 +245,9 @@ public class CareOverviewViewModel extends AndroidViewModel {
                 List<CareCompletionItem> items = new ArrayList<>();
                 for (CareCompletionWithPlantInfo completion : completions) {
                     // Plant display name: nickname if non-null/non-empty, else commonName, else "Your plant"
-                    String plantName;
-                    if (completion.nickname != null && !completion.nickname.isEmpty()) {
-                        plantName = completion.nickname;
-                    } else if (completion.commonName != null && !completion.commonName.isEmpty()) {
-                        plantName = completion.commonName;
-                    } else {
-                        plantName = "Your plant";
-                    }
+                  String displayText = getString(completion);
 
-                    // Past tense verb
-                    String verb = getPastTenseVerb(completion.careType);
-
-                    // Display text: "Watered Monstera"
-                    String displayText = verb + " " + plantName;
-
-                    // Relative time: "2 days ago"
+                  // Relative time: "2 days ago"
                     String relativeTime = DateFormatter.getRelativeTime(getApplication(), completion.completedAt);
 
                     items.add(new CareCompletionItem(
@@ -286,7 +269,26 @@ public class CareOverviewViewModel extends AndroidViewModel {
         });
     }
 
-    /**
+  @NonNull
+  private String getString(CareCompletionWithPlantInfo completion) {
+    String plantName;
+    if (completion.nickname != null && !completion.nickname.isEmpty()) {
+        plantName = completion.nickname;
+    } else if (completion.commonName != null && !completion.commonName.isEmpty()) {
+        plantName = completion.commonName;
+    } else {
+        plantName = "Your plant";
+    }
+
+    // Past tense verb
+    String verb = getPastTenseVerb(completion.careType);
+
+    // Display text: "Watered Monstera"
+    String displayText = verb + " " + plantName;
+    return displayText;
+  }
+
+  /**
      * Gets past tense verb for care type.
      */
     private String getPastTenseVerb(String careType) {

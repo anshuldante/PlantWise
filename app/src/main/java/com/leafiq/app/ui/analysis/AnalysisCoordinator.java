@@ -8,9 +8,7 @@ import com.leafiq.app.util.PhotoQualityChecker;
  * - Quality check -> override -> analyze flow
  * - Re-analyze from failed parse -> choose photo -> analyze
  * - Quick vs Full mode branching
- *
  * Keeps Activity as thin UI glue code.
- *
  * All methods are static and pure (no state, no Android dependencies).
  * This makes flow decisions trivially testable without mocking.
  */
@@ -30,7 +28,6 @@ public class AnalysisCoordinator {
     /**
      * Determines what action to take based on quality check result.
      * Pure logic, no UI involvement.
-     *
      * Decision flow:
      * 1. If result is null (check failed) -> SKIP_CHECK_ERROR (proceed anyway, don't block on check failure)
      * 2. If passed -> PROCEED_TO_ANALYSIS
@@ -61,19 +58,16 @@ public class AnalysisCoordinator {
      * Determines re-analyze action based on user choice and context.
      * Per CONTEXT.md:
      * - Default focus on original photo
-     * - If original was Quick Diagnosis: default to Quick with original
      * - Allow upgrade to Full with new photo
      * - Never auto-upgrade silently
      *
      * @param useOriginalPhoto Whether user chose to use original photo
-     * @param originalWasQuick Whether the original analysis was Quick Diagnosis
      * @param userChoseUpgrade Whether user explicitly chose to upgrade to Full
      * @param userChoseAnalyzeAsNew Whether user chose "Analyze as new"
      * @return ReanalyzeAction enum indicating what flow to take
      */
     public static ReanalyzeAction evaluateReanalyze(
             boolean useOriginalPhoto,
-            boolean originalWasQuick,
             boolean userChoseUpgrade,
             boolean userChoseAnalyzeAsNew) {
 
@@ -86,7 +80,6 @@ public class AnalysisCoordinator {
     /**
      * Determines if Quick Diagnosis should be used for re-analysis.
      * Per CONTEXT.md: "If original was Quick Diagnosis: default to Quick with original"
-     *
      * Decision flow:
      * 1. If user explicitly chose upgrade to Full -> return false (Full mode)
      * 2. Otherwise, match original mode (Quick stays Quick, Full stays Full)
