@@ -35,17 +35,10 @@ public class AIProviderFactoryTest {
     }
 
     @Test
-    public void create_perplexity_returnsPerplexityProvider() {
-        AIProvider provider = AIProviderFactory.create("perplexity", "test-key", client);
-        assertThat(provider).isInstanceOf(PerplexityProvider.class);
-    }
-
-    @Test
     public void create_caseInsensitive_returnsCorrectProvider() {
         assertThat(AIProviderFactory.create("GEMINI", "key", client)).isInstanceOf(GeminiProvider.class);
         assertThat(AIProviderFactory.create("Claude", "key", client)).isInstanceOf(ClaudeProvider.class);
         assertThat(AIProviderFactory.create("OpenAI", "key", client)).isInstanceOf(OpenAIProvider.class);
-        assertThat(AIProviderFactory.create("PERPLEXITY", "key", client)).isInstanceOf(PerplexityProvider.class);
     }
 
     @Test

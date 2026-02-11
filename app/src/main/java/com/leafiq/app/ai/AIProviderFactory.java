@@ -5,7 +5,7 @@ import okhttp3.OkHttpClient;
 /**
  * Static factory for creating AIProvider instances based on provider name.
  * <p>
- * Supported providers: gemini, claude, openai, perplexity
+ * Supported providers: gemini, claude, openai
  * <p>
  * Usage:
  * <pre>
@@ -30,7 +30,7 @@ public class AIProviderFactory {
     /**
      * Creates an AIProvider instance for the specified provider name.
      *
-     * @param providerName One of: "gemini", "claude", "openai", "perplexity" (case-insensitive)
+     * @param providerName One of: "gemini", "claude", "openai" (case-insensitive)
      * @param apiKey The API key for the provider
      * @param client The shared OkHttpClient instance (from LeafIQApplication)
      * @return Configured AIProvider instance
@@ -54,12 +54,10 @@ public class AIProviderFactory {
                 return new ClaudeProvider(apiKey, client);
             case "openai":
                 return new OpenAIProvider(apiKey, client);
-            case "perplexity":
-                return new PerplexityProvider(apiKey, client);
             default:
                 throw new IllegalArgumentException(
                     "Unknown provider: " + providerName +
-                    ". Supported: gemini, claude, openai, perplexity"
+                    ". Supported: gemini, claude, openai"
                 );
         }
     }

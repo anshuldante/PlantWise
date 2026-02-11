@@ -41,8 +41,6 @@ public class KeystoreHelperTest {
         keystoreHelper.clearApiKey();
         keystoreHelper.saveProvider(KeystoreHelper.PROVIDER_OPENAI);
         keystoreHelper.clearApiKey();
-        keystoreHelper.saveProvider(KeystoreHelper.PROVIDER_PERPLEXITY);
-        keystoreHelper.clearApiKey();
         // Reset to default provider
         keystoreHelper.saveProvider(KeystoreHelper.PROVIDER_GEMINI);
     }
@@ -75,7 +73,7 @@ public class KeystoreHelperTest {
 
     @Test
     public void hasApiKeyForProvider_withoutKey_returnsFalse() {
-        assertThat(keystoreHelper.hasApiKeyForProvider(KeystoreHelper.PROVIDER_PERPLEXITY)).isFalse();
+        assertThat(keystoreHelper.hasApiKeyForProvider(KeystoreHelper.PROVIDER_CLAUDE)).isFalse();
     }
 
     @Test

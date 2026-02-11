@@ -104,12 +104,6 @@
                         android:layout_height="wrap_content"
                         android:text="Claude (Anthropic)" />
 
-                    <com.google.android.material.radiobutton.MaterialRadioButton
-                        android:id="@+id/radio_perplexity"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Perplexity" />
-
                 </RadioGroup>
 
                 <com.google.android.material.textfield.TextInputLayout

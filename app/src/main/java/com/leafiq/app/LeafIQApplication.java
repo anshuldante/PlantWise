@@ -193,7 +193,6 @@ public class LeafIQApplication extends Application {
                 if (host.contains("generativelanguage.googleapis.com")) provider = "Gemini";
                 else if (host.contains("anthropic.com")) provider = "Claude";
                 else if (host.contains("openai.com")) provider = "OpenAI";
-                else if (host.contains("perplexity.ai")) provider = "Perplexity";
 
                 // Mask API keys in URL (query parameter)
                 String url = request.url().toString();

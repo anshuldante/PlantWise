@@ -17,7 +17,6 @@ public class KeystoreHelper {
     private static final String KEY_API_KEY_GEMINI = "api_key_gemini";
     private static final String KEY_API_KEY_CLAUDE = "api_key_claude";
     private static final String KEY_API_KEY_OPENAI = "api_key_openai";
-    private static final String KEY_API_KEY_PERPLEXITY = "api_key_perplexity";
     // Legacy key for migration
     private static final String KEY_API_KEY_LEGACY = "api_key";
     private static final String KEY_PROVIDER = "ai_provider";
@@ -29,7 +28,6 @@ public class KeystoreHelper {
 
     public static final String PROVIDER_OPENAI = "openai";
     public static final String PROVIDER_CLAUDE = "claude";
-    public static final String PROVIDER_PERPLEXITY = "perplexity";
     public static final String PROVIDER_GEMINI = "gemini";
 
     private SharedPreferences prefs;
@@ -82,7 +80,6 @@ public class KeystoreHelper {
             case PROVIDER_GEMINI: return KEY_API_KEY_GEMINI;
             case PROVIDER_CLAUDE: return KEY_API_KEY_CLAUDE;
             case PROVIDER_OPENAI: return KEY_API_KEY_OPENAI;
-            case PROVIDER_PERPLEXITY: return KEY_API_KEY_PERPLEXITY;
             default: return KEY_API_KEY_GEMINI;
         }
     }

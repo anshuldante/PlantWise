@@ -35,7 +35,7 @@
     <string name="api_key_info_gemini">Get your FREE API key from aistudio.google.com. No credit card required! Your key is stored securely on your device.</string>
     <string name="api_key_info_openai">Get your API key from platform.openai.com. Your key is stored securely on your device.</string>
     <string name="api_key_info_claude">Get your API key from console.anthropic.com. Your key is stored securely on your device.</string>
-    <string name="api_key_info_perplexity">Get your API key from perplexity.ai/settings/api. Note: Perplexity may have limited image support.</string>
+
 
     <!-- Care Overview -->
     <string name="care_overview">Care Overview</string>

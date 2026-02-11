@@ -29,7 +29,6 @@ public class SettingsFragment extends Fragment {
     private MaterialRadioButton radioGemini;
     private MaterialRadioButton radioOpenAI;
     private MaterialRadioButton radioClaude;
-    private MaterialRadioButton radioPerplexity;
     private TextInputEditText apiKeyEdit;
     private MaterialButton saveButton;
     private TextView statusText;
@@ -58,7 +57,6 @@ public class SettingsFragment extends Fragment {
         radioGemini = view.findViewById(R.id.radio_gemini);
         radioOpenAI = view.findViewById(R.id.radio_openai);
         radioClaude = view.findViewById(R.id.radio_claude);
-        radioPerplexity = view.findViewById(R.id.radio_perplexity);
         apiKeyEdit = view.findViewById(R.id.edit_api_key);
         saveButton = view.findViewById(R.id.btn_save_key);
         statusText = view.findViewById(R.id.api_key_status);
@@ -71,8 +69,6 @@ public class SettingsFragment extends Fragment {
         String currentProvider = keystoreHelper.getProvider();
         if (KeystoreHelper.PROVIDER_CLAUDE.equals(currentProvider)) {
             radioClaude.setChecked(true);
-        } else if (KeystoreHelper.PROVIDER_PERPLEXITY.equals(currentProvider)) {
-            radioPerplexity.setChecked(true);
         } else if (KeystoreHelper.PROVIDER_OPENAI.equals(currentProvider)) {
             radioOpenAI.setChecked(true);
         } else {
@@ -158,8 +154,6 @@ public class SettingsFragment extends Fragment {
             apiKeyInfo.setText(R.string.api_key_info_gemini);
         } else if (checkedId == R.id.radio_claude) {
             apiKeyInfo.setText(R.string.api_key_info_claude);
-        } else if (checkedId == R.id.radio_perplexity) {
-            apiKeyInfo.setText(R.string.api_key_info_perplexity);
         } else {
             apiKeyInfo.setText(R.string.api_key_info_openai);
         }
@@ -184,8 +178,6 @@ public class SettingsFragment extends Fragment {
             return KeystoreHelper.PROVIDER_GEMINI;
         } else if (checkedId == R.id.radio_claude) {
             return KeystoreHelper.PROVIDER_CLAUDE;
-        } else if (checkedId == R.id.radio_perplexity) {
-            return KeystoreHelper.PROVIDER_PERPLEXITY;
         } else {
             return KeystoreHelper.PROVIDER_OPENAI;
         }
@@ -212,8 +204,6 @@ public class SettingsFragment extends Fragment {
             return "Gemini";
         } else if (KeystoreHelper.PROVIDER_CLAUDE.equals(provider)) {
             return "Claude";
-        } else if (KeystoreHelper.PROVIDER_PERPLEXITY.equals(provider)) {
-            return "Perplexity";
         } else {
             return "ChatGPT";
         }

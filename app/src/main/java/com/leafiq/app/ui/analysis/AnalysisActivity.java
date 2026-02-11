@@ -215,7 +215,7 @@ public class AnalysisActivity extends AppCompatActivity {
                 android.util.Log.d("AnalysisActivity", "Image copied to: " + localImageUri);
 
                 // After copy completes, validate photo quality
-                runOnUiThread(() -> validatePhotoQuality());
+                runOnUiThread(this::validatePhotoQuality);
 
             } catch (Exception e) {
                 android.util.Log.e("AnalysisActivity", "Failed to copy image locally: " + e.getMessage());
@@ -270,8 +270,6 @@ public class AnalysisActivity extends AppCompatActivity {
             return "Gemini";
         } else if (KeystoreHelper.PROVIDER_CLAUDE.equals(provider)) {
             return "Claude";
-        } else if (KeystoreHelper.PROVIDER_PERPLEXITY.equals(provider)) {
-            return "Perplexity";
         } else {
             return "OpenAI";
         }
@@ -369,8 +367,8 @@ public class AnalysisActivity extends AppCompatActivity {
                     PhotoQualityChecker.checkQuality(getContentResolver(), uriToCheck, isQuickDiagnosis);
 
                 // Log quality check with actual scores
-                Log.i("QualityCheck", String.format("photo_quality_check: blur=%.1f brightness=%.2f passed=%b override=%b quick=%b",
-                        result.blurScore, result.brightnessScore, result.passed, result.overrideAllowed, isQuickDiagnosis));
+                Log.i("QualityCheck", String.format("photo_quality_check: brightness=%.2f passed=%b override=%b quick=%b",
+                        result.brightnessScore, result.passed, result.overrideAllowed, isQuickDiagnosis));
 
                 runOnUiThread(() -> {
                     // Delegate decision to AnalysisCoordinator
@@ -378,23 +376,21 @@ public class AnalysisActivity extends AppCompatActivity {
                         AnalysisCoordinator.evaluateQuality(result);
 
                     switch (action) {
-                        case PROCEED_TO_ANALYSIS:
-                            proceedToAnalysis();
-                            break;
-                        case SHOW_BORDERLINE_WARNING:
-                            showQualityWarning(result);
-                            break;
-                        case SHOW_EGREGIOUS_REJECTION:
-                            showQualityRejection(result);
-                            break;
-                        case SKIP_CHECK_ERROR:
-                            proceedToAnalysis();
-                            break;
+                      case PROCEED_TO_ANALYSIS:
+                      case SKIP_CHECK_ERROR:
+                        proceedToAnalysis();
+                        break;
+                      case SHOW_BORDERLINE_WARNING:
+                        showQualityWarning(result);
+                        break;
+                      case SHOW_EGREGIOUS_REJECTION:
+                        showQualityRejection(result);
+                        break;
                     }
                 });
             } catch (Exception e) {
                 // If quality check fails, proceed anyway (don't block on check failure)
-                runOnUiThread(() -> proceedToAnalysis());
+                runOnUiThread(this::proceedToAnalysis);
             }
         });
     }
@@ -443,8 +439,8 @@ public class AnalysisActivity extends AppCompatActivity {
             .setPositiveButton("Use Anyway", (d, w) -> {
                 qualityOverridden = true;
                 viewModel.setQualityOverridden(true);
-                Log.i("QualityCheck", String.format("photo_quality_override_used: issueType=%s blur=%.1f brightness=%.2f",
-                        result.issueType, result.blurScore, result.brightnessScore));
+                Log.i("QualityCheck", String.format("photo_quality_override_used: issueType=%s brightness=%.2f",
+                        result.issueType, result.brightnessScore));
                 proceedToAnalysis();
             })
             .setNegativeButton("Choose Different Photo", (d, w) -> finish())
@@ -521,7 +517,7 @@ public class AnalysisActivity extends AppCompatActivity {
                 String additionalContext = contextInput.getText() != null ? contextInput.getText().toString().trim() : "";
 
                 // Validate health score if provided
-                int correctedHealth = 0;
+                int correctedHealth;
                 if (!healthText.isEmpty()) {
                     try {
                         correctedHealth = Integer.parseInt(healthText);
@@ -783,7 +779,7 @@ public class AnalysisActivity extends AppCompatActivity {
             executor.shutdown();
         }
         // Cleanup temporary image file
-        if (localImageUri != null) {
+        if (localImageUri != null && localImageUri.getPath() != null) {
             java.io.File tempFile = new java.io.File(localImageUri.getPath());
             if (tempFile.exists()) {
                 tempFile.delete();
