@@ -27,6 +27,7 @@ import com.leafiq.app.data.model.PlantAnalysisResult;
 import com.leafiq.app.util.DateFormatter;
 import com.leafiq.app.util.HealthUtils;
 import com.leafiq.app.util.JsonParser;
+import com.leafiq.app.util.RobustJsonParser;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -142,6 +143,7 @@ public class TimelineAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
         private ShapeableImageView entryPhoto;
         private TextView healthLabel;
         private TextView diagnosis;
+        private TextView limitedDetailsLabel;
         private LinearLayout careHighlights;
         private TextView careHighlight1;
         private TextView careHighlight2;
@@ -162,6 +164,7 @@ public class TimelineAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
             entryPhoto = itemView.findViewById(R.id.entry_photo);
             healthLabel = itemView.findViewById(R.id.entry_health_label);
             diagnosis = itemView.findViewById(R.id.entry_diagnosis);
+            limitedDetailsLabel = itemView.findViewById(R.id.limited_details_label);
             careHighlights = itemView.findViewById(R.id.care_highlights);
             careHighlight1 = itemView.findViewById(R.id.care_highlight_1);
             careHighlight2 = itemView.findViewById(R.id.care_highlight_2);
@@ -171,13 +174,24 @@ public class TimelineAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
         public void bind(TimelineViewModel.TimelineItem.Entry entry, OnTimelineItemClickListener listener) {
             AnalysisWithPlant data = entry.data;
 
+            // Check parse status for dimming
+            String parseStatus = data.analysis.parseStatus;
+            boolean isDegraded = "PARTIAL".equals(parseStatus) || "FAILED".equals(parseStatus) || "EMPTY".equals(parseStatus);
+
+            // Apply dimming to entire itemView if degraded
+            if (isDegraded) {
+                itemView.setAlpha(0.82f);
+            } else {
+                itemView.setAlpha(1.0f);
+            }
+
             // Collapsed content
-            bindCollapsedContent(data, entry.isExpanded);
+            bindCollapsedContent(data, entry.isExpanded, isDegraded);
 
             // Expanded content
             if (entry.isExpanded) {
                 expandedContent.setVisibility(View.VISIBLE);
-                bindExpandedContent(data);
+                bindExpandedContent(data, isDegraded);
             } else {
                 expandedContent.setVisibility(View.GONE);
             }
@@ -197,7 +211,7 @@ public class TimelineAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
             });
         }
 
-        private void bindCollapsedContent(AnalysisWithPlant data, boolean isExpanded) {
+        private void bindCollapsedContent(AnalysisWithPlant data, boolean isExpanded, boolean isDegraded) {
             // Plant icon - circular crop
             if (data.plantThumbnailPath != null && !data.plantThumbnailPath.isEmpty()) {
                 Glide.with(context)
@@ -209,7 +223,7 @@ public class TimelineAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
                 plantIcon.setImageResource(R.drawable.ic_plant_placeholder);
             }
 
-            // Plant name - nickname takes precedence
+            // Plant name - nickname takes precedence, with icon indicator for degraded entries
             String displayName;
             if (data.plantNickname != null && !data.plantNickname.isEmpty()) {
                 displayName = data.plantNickname;
@@ -218,7 +232,12 @@ public class TimelineAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
             } else {
                 displayName = "Unknown Plant";
             }
-            plantName.setText(displayName);
+            // Add info icon for degraded entries (non-color cue)
+            if (isDegraded) {
+                plantName.setText("ℹ️ " + displayName);
+            } else {
+                plantName.setText(displayName);
+            }
 
             // Health badge - text label with color (no numeric score)
             String healthLabelText = HealthUtils.getHealthLabel(data.analysis.healthScore);
@@ -241,7 +260,7 @@ public class TimelineAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
             chevron.setRotation(rotation);
         }
 
-        private void bindExpandedContent(AnalysisWithPlant data) {
+        private void bindExpandedContent(AnalysisWithPlant data, boolean isDegraded) {
             // Photo thumbnail
             if (data.analysis.photoPath != null && !data.analysis.photoPath.isEmpty()) {
                 Glide.with(context)
@@ -267,6 +286,14 @@ public class TimelineAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
                 diagnosisText = diagnosisText.substring(0, 100) + "...";
             }
             diagnosis.setText(diagnosisText);
+
+            // Show "Limited details" label for degraded entries
+            if (isDegraded && limitedDetailsLabel != null) {
+                limitedDetailsLabel.setText("Limited details");
+                limitedDetailsLabel.setVisibility(View.VISIBLE);
+            } else if (limitedDetailsLabel != null) {
+                limitedDetailsLabel.setVisibility(View.GONE);
+            }
 
             // Care highlights - parse from rawResponse
             bindCareHighlights(data);
@@ -301,6 +328,7 @@ public class TimelineAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
         /**
          * Extract up to 2 critical care highlights from analysis.
          * Priority: immediateActions > care plan adjustments.
+         * Uses RobustJsonParser for graceful handling of malformed JSON.
          */
         private List<String> extractCareHighlights(AnalysisWithPlant data) {
             List<String> highlights = new ArrayList<>();
@@ -309,41 +337,48 @@ public class TimelineAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
                 return highlights;
             }
 
-            try {
-                PlantAnalysisResult parsed = JsonParser.parsePlantAnalysis(data.analysis.rawResponse);
+            // Use RobustJsonParser for layered fallback
+            RobustJsonParser.ParseResult parseResult = RobustJsonParser.parse(data.analysis.rawResponse);
 
-                // Priority 1: Immediate actions (urgent or soon)
-                if (parsed.immediateActions != null) {
-                    for (PlantAnalysisResult.ImmediateAction action : parsed.immediateActions) {
-                        if (highlights.size() >= 2) break;
+            // If parse FAILED or EMPTY, return empty highlights (no crash)
+            if ("FAILED".equals(parseResult.parseStatus) || "EMPTY".equals(parseResult.parseStatus)) {
+                return highlights;
+            }
 
-                        if ("urgent".equals(action.priority) || "soon".equals(action.priority)) {
-                            if (action.action != null && !action.action.isEmpty()) {
-                                highlights.add(action.action);
-                            }
+            // For OK or PARTIAL, extract whatever highlights are available
+            PlantAnalysisResult parsed = parseResult.result;
+            if (parsed == null) {
+                return highlights;
+            }
+
+            // Priority 1: Immediate actions (urgent or soon)
+            if (parsed.immediateActions != null) {
+                for (PlantAnalysisResult.ImmediateAction action : parsed.immediateActions) {
+                    if (highlights.size() >= 2) break;
+
+                    if ("urgent".equals(action.priority) || "soon".equals(action.priority)) {
+                        if (action.action != null && !action.action.isEmpty()) {
+                            highlights.add(action.action);
                         }
                     }
                 }
+            }
 
-                // Priority 2: Care plan adjustments (if not at max)
-                if (highlights.size() < 2 && parsed.carePlan != null) {
-                    // Light adjustment
-                    if (highlights.size() < 2 && parsed.carePlan.light != null
-                            && parsed.carePlan.light.adjustment != null
-                            && !parsed.carePlan.light.adjustment.isEmpty()) {
-                        highlights.add(parsed.carePlan.light.adjustment);
-                    }
-
-                    // Watering notes
-                    if (highlights.size() < 2 && parsed.carePlan.watering != null
-                            && parsed.carePlan.watering.notes != null
-                            && !parsed.carePlan.watering.notes.isEmpty()) {
-                        highlights.add(parsed.carePlan.watering.notes);
-                    }
+            // Priority 2: Care plan adjustments (if not at max)
+            if (highlights.size() < 2 && parsed.carePlan != null) {
+                // Light adjustment
+                if (highlights.size() < 2 && parsed.carePlan.light != null
+                        && parsed.carePlan.light.adjustment != null
+                        && !parsed.carePlan.light.adjustment.isEmpty()) {
+                    highlights.add(parsed.carePlan.light.adjustment);
                 }
 
-            } catch (Exception e) {
-                // Parsing failed - no highlights
+                // Watering notes
+                if (highlights.size() < 2 && parsed.carePlan.watering != null
+                        && parsed.carePlan.watering.notes != null
+                        && !parsed.carePlan.watering.notes.isEmpty()) {
+                    highlights.add(parsed.carePlan.watering.notes);
+                }
             }
 
             return highlights;
