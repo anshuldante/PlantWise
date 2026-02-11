@@ -14,6 +14,8 @@ import com.leafiq.app.LeafIQApplication;
 import com.leafiq.app.ai.AIProvider;
 import com.leafiq.app.ai.AIProviderFactory;
 import com.leafiq.app.care.CareScheduleManager;
+import com.leafiq.app.data.db.AnalysisDao;
+import com.leafiq.app.data.db.AppDatabase;
 import com.leafiq.app.data.entity.Analysis;
 import com.leafiq.app.data.entity.CareItem;
 import com.leafiq.app.data.entity.CareSchedule;
@@ -273,6 +275,83 @@ public class AnalysisViewModel extends AndroidViewModel {
     }
 
     /**
+     * Re-analyzes an existing analysis entry. Per CONTEXT.md:
+     * - Re-analysis replaces original record: parse_status -> OK
+     * - Preserves original timestamp, adds re_analyzed_at
+     * - Exception: if user explicitly chooses "Analyze as new", create new entry
+     *
+     * @param imageUri URI of the plant photo
+     * @param plantId Plant ID if re-analyzing existing plant, null for new plant
+     * @param existingAnalysisId ID of the existing analysis to update
+     * @param asNew If true, create new entry instead of updating existing
+     */
+    public void reanalyzeExisting(Uri imageUri, String plantId, String existingAnalysisId, boolean asNew) {
+        if (asNew) {
+            // Create new entry (standard analyzeImage flow)
+            analyzeImage(imageUri, plantId);
+            return;
+        }
+
+        // Set loading state
+        uiState.setValue(AnalysisUiState.loading());
+        startWarningTimer();
+
+        // Get provider and API key
+        String providerName = keystoreHelper.getProvider();
+        String apiKey = keystoreHelper.getApiKey();
+
+        // Get shared HTTP client
+        OkHttpClient client = ((LeafIQApplication) getApplication()).getHttpClient();
+
+        // Create provider
+        AIProvider provider = AIProviderFactory.create(providerName, apiKey, client);
+
+        // Analyze the image
+        analyzePlantUseCase.execute(imageUri, plantId, provider, new AnalyzePlantUseCase.Callback() {
+            @Override
+            public void onSuccess(PlantAnalysisResult result) {
+                cancelWarningTimer();
+
+                // Update existing analysis record instead of creating new one
+                LeafIQApplication app = (LeafIQApplication) getApplication();
+                app.getAppExecutors().io().execute(() -> {
+                    try {
+                        AppDatabase db = AppDatabase.getInstance(app);
+                        AnalysisDao dao = db.analysisDao();
+                        Analysis existing = dao.getAnalysisById(existingAnalysisId);
+                        if (existing != null) {
+                            existing.rawResponse = result.rawResponse;
+                            existing.healthScore = result.healthAssessment != null ? result.healthAssessment.score : existing.healthScore;
+                            existing.summary = result.healthAssessment != null ? result.healthAssessment.summary : existing.summary;
+                            existing.parseStatus = "OK";
+                            existing.reAnalyzedAt = System.currentTimeMillis();
+                            dao.updateAnalysis(existing);
+
+                            Log.i("AnalysisFlow", "analysis_reanalyzed: id=" + existingAnalysisId);
+                        }
+                    } catch (Exception e) {
+                        Log.e("AnalysisFlow", "Failed to update re-analyzed entry: " + e.getMessage());
+                    }
+                });
+
+                uiState.postValue(AnalysisUiState.success(result));
+            }
+
+            @Override
+            public void onError(String message) {
+                cancelWarningTimer();
+                uiState.postValue(AnalysisUiState.error(message));
+            }
+
+            @Override
+            public void onVisionNotSupported(String providerDisplayName) {
+                cancelWarningTimer();
+                uiState.postValue(AnalysisUiState.visionNotSupported(providerDisplayName));
+            }
+        });
+    }
+
+    /**
      * Saves field corrections without re-analysis.
      * Updates plant name and analysis health score directly.
      *
@@ -391,6 +470,7 @@ public class AnalysisViewModel extends AndroidViewModel {
             analysis.summary = result.healthAssessment != null ?
                     result.healthAssessment.summary : "";
             analysis.rawResponse = result.rawResponse;
+            analysis.parseStatus = "OK";  // New analyses always start as OK since we just parsed successfully
             analysis.createdAt = now;
 
             // Create care items from care plan
