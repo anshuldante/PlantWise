@@ -15,6 +15,9 @@
     <string name="capture">Capture</string>
     <string name="gallery">Gallery</string>
     <string name="camera_permission_required">Camera permission is required</string>
+    <string name="flash_off">Flash off</string>
+    <string name="flash_on">Flash on</string>
+    <string name="flash_auto">Flash auto</string>
 
     <!-- Analysis -->
     <string name="analyzing">Analyzing your plant...</string>

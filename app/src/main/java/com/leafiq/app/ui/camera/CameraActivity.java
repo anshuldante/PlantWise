@@ -17,6 +17,7 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.camera.core.Camera;
 import androidx.camera.core.CameraSelector;
 import androidx.camera.core.ImageCapture;
 import androidx.camera.core.ImageCaptureException;
@@ -59,16 +60,23 @@ public class CameraActivity extends AppCompatActivity {
     private static final String TAG = "CameraActivity";
     public static final String EXTRA_PLANT_ID = "extra_plant_id";
 
+    private static final int FLASH_MODE_OFF = 0;
+    private static final int FLASH_MODE_ON = 1;
+    private static final int FLASH_MODE_AUTO = 2;
+
     private PreviewView previewView;
     private FloatingActionButton captureButton;
     private ImageButton galleryButton;
     private ImageButton closeButton;
+    private ImageButton flashButton;
     private ProgressBar progress;
 
     private ImageCapture imageCapture;
+    private Camera camera;
     private ExecutorService cameraExecutor;
     private String plantId;
     private PhotoTipsManager tipsManager;
+    private int currentFlashMode = FLASH_MODE_OFF;
 
     private final ActivityResultLauncher<String> requestCameraPermission =
         registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
@@ -97,6 +105,7 @@ public class CameraActivity extends AppCompatActivity {
         captureButton = findViewById(R.id.btn_capture);
         galleryButton = findViewById(R.id.btn_gallery);
         closeButton = findViewById(R.id.btn_close);
+        flashButton = findViewById(R.id.btn_flash);
         progress = findViewById(R.id.progress);
 
         cameraExecutor = Executors.newSingleThreadExecutor();
@@ -105,6 +114,7 @@ public class CameraActivity extends AppCompatActivity {
         captureButton.setOnClickListener(v -> takePhoto());
         galleryButton.setOnClickListener(v -> openGallery());
         closeButton.setOnClickListener(v -> finish());
+        flashButton.setOnClickListener(v -> toggleFlash());
 
         if (checkCameraPermission()) {
             checkAndShowTipsOrStartCamera();
@@ -150,13 +160,48 @@ public class CameraActivity extends AppCompatActivity {
                 CameraSelector cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA;
 
                 cameraProvider.unbindAll();
-                cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageCapture);
+                camera = cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageCapture);
+
+                // Hide flash button if device has no flash
+                if (!camera.getCameraInfo().hasFlashUnit()) {
+                    flashButton.setVisibility(View.GONE);
+                }
 
             } catch (Exception e) {
                 Log.e(TAG, "Camera initialization failed", e);
                 Toast.makeText(this, "Camera failed to start", Toast.LENGTH_SHORT).show();
             }
         }, ContextCompat.getMainExecutor(this));
+    }
+
+    private void toggleFlash() {
+        currentFlashMode = (currentFlashMode + 1) % 3;
+        switch (currentFlashMode) {
+            case FLASH_MODE_OFF:
+                imageCapture.setFlashMode(ImageCapture.FLASH_MODE_OFF);
+                flashButton.setImageResource(R.drawable.ic_flash_off);
+                flashButton.setContentDescription(getString(R.string.flash_off));
+                if (camera != null) {
+                    camera.getCameraControl().enableTorch(false);
+                }
+                break;
+            case FLASH_MODE_ON:
+                imageCapture.setFlashMode(ImageCapture.FLASH_MODE_ON);
+                flashButton.setImageResource(R.drawable.ic_flash_on);
+                flashButton.setContentDescription(getString(R.string.flash_on));
+                if (camera != null) {
+                    camera.getCameraControl().enableTorch(true);
+                }
+                break;
+            case FLASH_MODE_AUTO:
+                imageCapture.setFlashMode(ImageCapture.FLASH_MODE_AUTO);
+                flashButton.setImageResource(R.drawable.ic_flash_auto);
+                flashButton.setContentDescription(getString(R.string.flash_auto));
+                if (camera != null) {
+                    camera.getCameraControl().enableTorch(false);
+                }
+                break;
+        }
     }
 
     private void takePhoto() {
