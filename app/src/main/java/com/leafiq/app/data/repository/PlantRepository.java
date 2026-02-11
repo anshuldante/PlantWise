@@ -161,6 +161,37 @@ public class PlantRepository {
         return careCompletionDao.getRecentCompletionsForPlant(plantId, limit);
     }
 
+    /**
+     * Gets the count of analyses for a plant.
+     * LiveData updates automatically when analyses change.
+     *
+     * @param plantId Plant ID to count analyses for
+     */
+    public LiveData<Integer> getAnalysisCountForPlant(String plantId) {
+        return analysisDao.getAnalysisCountForPlant(plantId);
+    }
+
+    /**
+     * Gets the count of care completions for a plant.
+     * LiveData updates automatically when completions change.
+     *
+     * @param plantId Plant ID to count completions for
+     */
+    public LiveData<Integer> getCareCompletionCountForPlant(String plantId) {
+        return careCompletionDao.getCareCompletionCountForPlant(plantId);
+    }
+
+    /**
+     * Gets a limited number of care completions for a plant.
+     * LiveData updates automatically when completions change.
+     *
+     * @param plantId Plant ID to get completions for
+     * @param limit Maximum number of completions to return
+     */
+    public LiveData<List<CareCompletion>> getLimitedCompletionsForPlant(String plantId, int limit) {
+        return careCompletionDao.getLimitedCompletionsForPlant(plantId, limit);
+    }
+
     // ==================== Synchronous Read Methods ====================
     // For use on background threads only (e.g., within UseCase executors)
 

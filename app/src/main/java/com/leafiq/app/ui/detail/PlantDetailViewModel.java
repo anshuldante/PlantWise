@@ -98,4 +98,16 @@ public class PlantDetailViewModel extends AndroidViewModel {
             }
         });
     }
+
+    public LiveData<Integer> getAnalysisCount(String plantId) {
+        return repository.getAnalysisCountForPlant(plantId);
+    }
+
+    public LiveData<Integer> getCareCompletionCount(String plantId) {
+        return repository.getCareCompletionCountForPlant(plantId);
+    }
+
+    public LiveData<List<CareCompletion>> getLimitedCompletions(String plantId, int limit) {
+        return repository.getLimitedCompletionsForPlant(plantId, limit);
+    }
 }

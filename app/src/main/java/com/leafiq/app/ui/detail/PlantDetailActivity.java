@@ -59,8 +59,6 @@ public class PlantDetailActivity extends AppCompatActivity {
     private MaterialCardView summaryCard;
     private TextView latestSummary;
     private TextView lastAnalyzedDate;
-    private TextView historyLabel;
-    private RecyclerView analysisHistory;
     private FloatingActionButton fabReanalyze;
     private MaterialButton deleteButton;
     private MaterialButton correctButton;
@@ -72,9 +70,17 @@ public class PlantDetailActivity extends AppCompatActivity {
     private SwitchMaterial switchReminders;
     private LinearLayout schedulesContainer;
     private TextView snoozeSuggestion;
+    private LinearLayout onboardingCtaBlock;
+    private MaterialButton onboardingAnalyzeButton;
+    private TextView onboardingCareLink;
     private LinearLayout careHistorySection;
-    private RecyclerView careHistoryRecycler;
+    private TextView careHistoryViewAll;
+    private RecyclerView careHistoryInlineRecycler;
     private TextView careHistoryEmpty;
+    private LinearLayout analysisHistorySection;
+    private TextView analysisHistoryViewAll;
+    private RecyclerView analysisHistoryInlineRecycler;
+    private TextView analysisHistoryEmpty;
 
     private String plantId;
     private Plant currentPlant;
@@ -123,8 +129,6 @@ public class PlantDetailActivity extends AppCompatActivity {
         summaryCard = findViewById(R.id.summary_card);
         latestSummary = findViewById(R.id.latest_summary);
         lastAnalyzedDate = findViewById(R.id.last_analyzed_date);
-        historyLabel = findViewById(R.id.history_label);
-        analysisHistory = findViewById(R.id.analysis_history);
         fabReanalyze = findViewById(R.id.fab_reanalyze);
         deleteButton = findViewById(R.id.btn_delete);
         correctButton = findViewById(R.id.btn_correct_analysis);
@@ -136,9 +140,17 @@ public class PlantDetailActivity extends AppCompatActivity {
         switchReminders = findViewById(R.id.switch_reminders);
         schedulesContainer = findViewById(R.id.schedules_container);
         snoozeSuggestion = findViewById(R.id.snooze_suggestion);
+        onboardingCtaBlock = findViewById(R.id.onboarding_cta_block);
+        onboardingAnalyzeButton = findViewById(R.id.onboarding_analyze_button);
+        onboardingCareLink = findViewById(R.id.onboarding_care_link);
         careHistorySection = findViewById(R.id.care_history_section);
-        careHistoryRecycler = findViewById(R.id.care_history_recycler);
+        careHistoryViewAll = findViewById(R.id.care_history_view_all);
+        careHistoryInlineRecycler = findViewById(R.id.care_history_inline_recycler);
         careHistoryEmpty = findViewById(R.id.care_history_empty);
+        analysisHistorySection = findViewById(R.id.analysis_history_section);
+        analysisHistoryViewAll = findViewById(R.id.analysis_history_view_all);
+        analysisHistoryInlineRecycler = findViewById(R.id.analysis_history_inline_recycler);
+        analysisHistoryEmpty = findViewById(R.id.analysis_history_empty);
 
         setupInputListeners();
         setupReminderToggle();
@@ -296,22 +308,27 @@ public class PlantDetailActivity extends AppCompatActivity {
             intent.putExtra(AnalysisDetailActivity.EXTRA_PLANT_ID, plantId);
             startActivity(intent);
         });
-        analysisHistory.setLayoutManager(new LinearLayoutManager(this));
-        analysisHistory.setAdapter(adapter);
+        analysisHistoryInlineRecycler.setLayoutManager(new LinearLayoutManager(this));
+        analysisHistoryInlineRecycler.setAdapter(adapter);
     }
 
     private void setupCareHistoryRecycler() {
         careHistoryAdapter = new CareHistoryAdapter();
-        careHistoryRecycler.setLayoutManager(new LinearLayoutManager(this));
-        careHistoryRecycler.setAdapter(careHistoryAdapter);
+        careHistoryInlineRecycler.setLayoutManager(new LinearLayoutManager(this));
+        careHistoryInlineRecycler.setAdapter(careHistoryAdapter);
     }
 
     private void observeData() {
         viewModel.getPlant(plantId).observe(this, this::displayPlant);
         viewModel.getAnalyses(plantId).observe(this, analyses -> {
             if (analyses != null && !analyses.isEmpty()) {
-                historyLabel.setVisibility(View.VISIBLE);
-                adapter.submitList(analyses);
+                analysisHistorySection.setVisibility(View.VISIBLE);
+
+                // Limit to 3 entries for inline display
+                List<Analysis> limitedAnalyses = analyses.size() > 3
+                    ? analyses.subList(0, 3)
+                    : analyses;
+                adapter.submitList(limitedAnalyses);
 
                 // Show latest analysis summary
                 Analysis latest = analyses.get(0);
@@ -341,8 +358,8 @@ public class PlantDetailActivity extends AppCompatActivity {
             }
         });
 
-        // Observe care completions
-        viewModel.getRecentCompletionsForPlant(plantId, 10).observe(this, completions -> {
+        // Observe care completions (limited to 3 for inline display)
+        viewModel.getLimitedCompletions(plantId, 3).observe(this, completions -> {
             if (completions != null && !completions.isEmpty() && currentSchedules != null) {
                 careHistorySection.setVisibility(View.VISIBLE);
 
@@ -357,16 +374,29 @@ public class PlantDetailActivity extends AppCompatActivity {
                 careHistoryAdapter.submitList(completions);
 
                 // Show/hide empty state
-                careHistoryRecycler.setVisibility(View.VISIBLE);
+                careHistoryInlineRecycler.setVisibility(View.VISIBLE);
                 careHistoryEmpty.setVisibility(View.GONE);
             } else if (currentSchedules != null && !currentSchedules.isEmpty()) {
                 // Have schedules but no completions yet
                 careHistorySection.setVisibility(View.VISIBLE);
-                careHistoryRecycler.setVisibility(View.GONE);
+                careHistoryInlineRecycler.setVisibility(View.GONE);
                 careHistoryEmpty.setVisibility(View.VISIBLE);
             } else {
                 // No schedules, hide entire section
                 careHistorySection.setVisibility(View.GONE);
+            }
+        });
+
+        // Observe counts for "View All" links
+        viewModel.getAnalysisCount(plantId).observe(this, count -> {
+            if (count != null && count > 0) {
+                analysisHistoryViewAll.setText("(" + count + ") >");
+            }
+        });
+
+        viewModel.getCareCompletionCount(plantId).observe(this, count -> {
+            if (count != null && count > 0) {
+                careHistoryViewAll.setText("(" + count + ") >");
             }
         });
     }
