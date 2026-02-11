@@ -85,9 +85,10 @@ public class PlantDetailActivity extends AppCompatActivity {
     private String plantId;
     private Plant currentPlant;
     private Analysis latestAnalysis;
-    private AnalysisHistoryAdapter adapter;
-    private CareHistoryAdapter careHistoryAdapter;
+    private AnalysisHistoryInlineAdapter analysisInlineAdapter;
+    private CareHistoryInlineAdapter careInlineAdapter;
     private List<CareSchedule> currentSchedules;
+    private List<Analysis> fullAnalysisList;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -154,7 +155,9 @@ public class PlantDetailActivity extends AppCompatActivity {
 
         setupInputListeners();
         setupReminderToggle();
-        setupCareHistoryRecycler();
+        setupInlineAdapters();
+        setupOnboardingCta();
+        setupViewAllLinks();
 
         // Tap image to open full-screen viewer
         plantImage.setOnClickListener(v -> {
@@ -301,34 +304,84 @@ public class PlantDetailActivity extends AppCompatActivity {
     }
 
     private void setupRecyclerView() {
-        adapter = new AnalysisHistoryAdapter(analysis -> {
-            // Open AnalysisDetailActivity when history entry is clicked
+        // This method is no longer needed - moved to setupInlineAdapters
+    }
+
+    private void setupCareHistoryRecycler() {
+        // This method is no longer needed - moved to setupInlineAdapters
+    }
+
+    private void setupInlineAdapters() {
+        // Analysis inline adapter with click to navigate to AnalysisDetailActivity
+        analysisInlineAdapter = new AnalysisHistoryInlineAdapter(analysis -> {
             Intent intent = new Intent(this, AnalysisDetailActivity.class);
             intent.putExtra(AnalysisDetailActivity.EXTRA_ANALYSIS_ID, analysis.id);
             intent.putExtra(AnalysisDetailActivity.EXTRA_PLANT_ID, plantId);
             startActivity(intent);
         });
         analysisHistoryInlineRecycler.setLayoutManager(new LinearLayoutManager(this));
-        analysisHistoryInlineRecycler.setAdapter(adapter);
+        analysisHistoryInlineRecycler.setAdapter(analysisInlineAdapter);
+
+        // Care inline adapter
+        careInlineAdapter = new CareHistoryInlineAdapter();
+        careHistoryInlineRecycler.setLayoutManager(new LinearLayoutManager(this));
+        careHistoryInlineRecycler.setAdapter(careInlineAdapter);
     }
 
-    private void setupCareHistoryRecycler() {
-        careHistoryAdapter = new CareHistoryAdapter();
-        careHistoryInlineRecycler.setLayoutManager(new LinearLayoutManager(this));
-        careHistoryInlineRecycler.setAdapter(careHistoryAdapter);
+    private void setupOnboardingCta() {
+        // "Analyze Plant" button
+        onboardingAnalyzeButton.setOnClickListener(v -> {
+            Intent intent = new Intent(this, CameraActivity.class);
+            intent.putExtra(CameraActivity.EXTRA_PLANT_ID, plantId);
+            startActivity(intent);
+        });
+
+        // "Record a care activity" link - stub for now
+        onboardingCareLink.setOnClickListener(v -> {
+            Toast.makeText(this, "Coming soon", Toast.LENGTH_SHORT).show();
+        });
+    }
+
+    private void setupViewAllLinks() {
+        // Analysis history "View All" link
+        analysisHistoryViewAll.setOnClickListener(v -> {
+            Intent intent = new Intent(this, AnalysisHistoryActivity.class);
+            intent.putExtra(AnalysisHistoryActivity.EXTRA_PLANT_ID, plantId);
+            startActivity(intent);
+        });
+
+        // Care history "View All" link
+        careHistoryViewAll.setOnClickListener(v -> {
+            Intent intent = new Intent(this, CareHistoryActivity.class);
+            intent.putExtra(CareHistoryActivity.EXTRA_PLANT_ID, plantId);
+            startActivity(intent);
+        });
     }
 
     private void observeData() {
         viewModel.getPlant(plantId).observe(this, this::displayPlant);
+
+        // Track if we have any history for onboarding CTA logic
+        final boolean[] hasAnalyses = {false};
+        final boolean[] hasCareCompletions = {false};
+
         viewModel.getAnalyses(plantId).observe(this, analyses -> {
-            if (analyses != null && !analyses.isEmpty()) {
+            hasAnalyses[0] = analyses != null && !analyses.isEmpty();
+
+            if (hasAnalyses[0]) {
                 analysisHistorySection.setVisibility(View.VISIBLE);
+
+                // Store full list for trend computation
+                fullAnalysisList = analyses;
+
+                // Pass full list to adapter for trend arrows
+                analysisInlineAdapter.setFullAnalysisList(analyses);
 
                 // Limit to 3 entries for inline display
                 List<Analysis> limitedAnalyses = analyses.size() > 3
                     ? analyses.subList(0, 3)
                     : analyses;
-                adapter.submitList(limitedAnalyses);
+                analysisInlineAdapter.submitList(limitedAnalyses);
 
                 // Show latest analysis summary
                 Analysis latest = analyses.get(0);
@@ -344,7 +397,12 @@ public class PlantDetailActivity extends AppCompatActivity {
 
                 // Update sparkline with health score trend
                 updateSparkline(analyses, currentPlant != null ? currentPlant.latestHealthScore : 0);
+            } else {
+                analysisHistorySection.setVisibility(View.GONE);
             }
+
+            // Update onboarding CTA visibility
+            updateOnboardingCta(hasAnalyses[0], hasCareCompletions[0]);
         });
 
         // Observe care schedules
@@ -360,31 +418,34 @@ public class PlantDetailActivity extends AppCompatActivity {
 
         // Observe care completions (limited to 3 for inline display)
         viewModel.getLimitedCompletions(plantId, 3).observe(this, completions -> {
-            if (completions != null && !completions.isEmpty() && currentSchedules != null) {
+            hasCareCompletions[0] = completions != null && !completions.isEmpty();
+
+            if (hasCareCompletions[0] && currentSchedules != null) {
                 careHistorySection.setVisibility(View.VISIBLE);
 
-                // Build careTypeMap from schedules
+                // Build careTypeMap and scheduleMap from schedules
                 java.util.Map<String, String> careTypeMap = new java.util.HashMap<>();
+                java.util.Map<String, CareSchedule> scheduleMap = new java.util.HashMap<>();
                 for (CareSchedule schedule : currentSchedules) {
                     careTypeMap.put(schedule.id, schedule.careType);
+                    scheduleMap.put(schedule.id, schedule);
                 }
 
                 // Update adapter
-                careHistoryAdapter.setCareTypeMap(careTypeMap);
-                careHistoryAdapter.submitList(completions);
+                careInlineAdapter.setCareTypeMap(careTypeMap);
+                careInlineAdapter.setScheduleMap(scheduleMap);
+                careInlineAdapter.submitList(completions);
 
                 // Show/hide empty state
                 careHistoryInlineRecycler.setVisibility(View.VISIBLE);
                 careHistoryEmpty.setVisibility(View.GONE);
-            } else if (currentSchedules != null && !currentSchedules.isEmpty()) {
-                // Have schedules but no completions yet
-                careHistorySection.setVisibility(View.VISIBLE);
-                careHistoryInlineRecycler.setVisibility(View.GONE);
-                careHistoryEmpty.setVisibility(View.VISIBLE);
             } else {
-                // No schedules, hide entire section
+                // No completions, hide entire section (or show empty if we have schedules)
                 careHistorySection.setVisibility(View.GONE);
             }
+
+            // Update onboarding CTA visibility
+            updateOnboardingCta(hasAnalyses[0], hasCareCompletions[0]);
         });
 
         // Observe counts for "View All" links
@@ -399,6 +460,22 @@ public class PlantDetailActivity extends AppCompatActivity {
                 careHistoryViewAll.setText("(" + count + ") >");
             }
         });
+    }
+
+    /**
+     * Update onboarding CTA visibility based on history presence.
+     * Show CTA only when BOTH analyses and care completions are empty.
+     */
+    private void updateOnboardingCta(boolean hasAnalyses, boolean hasCareCompletions) {
+        if (!hasAnalyses && !hasCareCompletions) {
+            // Brand new plant - show onboarding CTA, hide history sections
+            onboardingCtaBlock.setVisibility(View.VISIBLE);
+            analysisHistorySection.setVisibility(View.GONE);
+            careHistorySection.setVisibility(View.GONE);
+        } else {
+            // Has some history - hide onboarding CTA, show sections
+            onboardingCtaBlock.setVisibility(View.GONE);
+        }
     }
 
     /**
