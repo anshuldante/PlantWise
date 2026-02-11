@@ -110,4 +110,8 @@ public class PlantDetailViewModel extends AndroidViewModel {
     public LiveData<List<CareCompletion>> getLimitedCompletions(String plantId, int limit) {
         return repository.getLimitedCompletionsForPlant(plantId, limit);
     }
+
+    public void deleteAnalysis(String analysisId, PlantRepository.RepositoryCallback<Void> callback) {
+        repository.deleteAnalysis(analysisId, callback);
+    }
 }
