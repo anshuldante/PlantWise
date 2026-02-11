@@ -60,6 +60,9 @@ public class AnalysisViewModel extends AndroidViewModel {
     private Handler warningHandler;
     private Runnable warningRunnable;
 
+    private boolean isQuickDiagnosis = false;
+    private boolean qualityOverridden = false;
+
     /**
      * Callback interface for save operations.
      */
@@ -105,6 +108,29 @@ public class AnalysisViewModel extends AndroidViewModel {
     }
 
     /**
+     * Sets Quick Diagnosis mode flag.
+     * When true, uses lenient quality thresholds and hedged language.
+     */
+    public void setQuickDiagnosis(boolean quickDiagnosis) {
+        this.isQuickDiagnosis = quickDiagnosis;
+    }
+
+    /**
+     * Gets Quick Diagnosis mode flag.
+     */
+    public boolean isQuickDiagnosis() {
+        return isQuickDiagnosis;
+    }
+
+    /**
+     * Sets quality override flag.
+     * Tracks when user proceeded with borderline photo quality.
+     */
+    public void setQualityOverridden(boolean overridden) {
+        this.qualityOverridden = overridden;
+    }
+
+    /**
      * Starts the 30-second warning timer.
      * Updates progress text to "Analysis is taking longer than usual..." after 30 seconds.
      */
@@ -141,6 +167,10 @@ public class AnalysisViewModel extends AndroidViewModel {
      * @param plantId Plant ID if re-analyzing existing plant, null for new plant
      */
     public void analyzeImage(Uri imageUri, String plantId) {
+        // Log analysis start with Quick Diagnosis and quality override state
+        Log.i("AnalysisFlow", String.format("analysis_started: plantId=%s quickDiagnosis=%b qualityOverride=%b",
+                plantId != null ? plantId : "new", isQuickDiagnosis, qualityOverridden));
+
         // Set loading state
         uiState.setValue(AnalysisUiState.loading());
         startWarningTimer();
@@ -194,6 +224,10 @@ public class AnalysisViewModel extends AndroidViewModel {
      * @param additionalContext Additional user-provided context (null or empty if none)
      */
     public void reanalyzeWithCorrections(Uri imageUri, String plantId, String correctedName, String additionalContext) {
+        // Log re-analysis start with Quick Diagnosis and quality override state
+        Log.i("AnalysisFlow", String.format("analysis_started: plantId=%s quickDiagnosis=%b qualityOverride=%b",
+                plantId != null ? plantId : "new", isQuickDiagnosis, qualityOverridden));
+
         // Set loading state
         uiState.setValue(AnalysisUiState.loading());
         startWarningTimer();
