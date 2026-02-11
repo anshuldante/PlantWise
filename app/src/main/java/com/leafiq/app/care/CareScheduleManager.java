@@ -298,6 +298,48 @@ public class CareScheduleManager {
     }
 
     /**
+     * Recalculates the nextDue date for a schedule based on its last completion.
+     * Called after deleting a care completion to update the schedule timing.
+     *
+     * @param scheduleId Schedule ID to recalculate
+     */
+    public void recalculateNextDue(String scheduleId) {
+        CareSchedule schedule = repository.getScheduleByIdSync(scheduleId);
+        if (schedule == null) {
+            return;
+        }
+
+        // Find the last remaining completion for this schedule
+        CareCompletion lastCompletion = repository.getLastCompletionForScheduleSync(scheduleId);
+
+        if (lastCompletion != null) {
+            // Calculate nextDue from last completion
+            schedule.nextDue = lastCompletion.completedAt + (schedule.frequencyDays * MILLIS_PER_DAY);
+        } else {
+            // No completions remaining - reset to current time + frequency
+            schedule.nextDue = System.currentTimeMillis() + (schedule.frequencyDays * MILLIS_PER_DAY);
+        }
+
+        // Update schedule in database
+        repository.updateSchedule(schedule, new PlantRepository.RepositoryCallback<Void>() {
+            @Override
+            public void onSuccess(Void result) {
+                // Updated successfully
+            }
+
+            @Override
+            public void onError(Exception e) {
+                // Log error silently
+            }
+        });
+
+        // Reschedule alarm if schedule is enabled
+        if (schedule.isEnabled) {
+            scheduleNextAlarm();
+        }
+    }
+
+    /**
      * Helper method to find existing schedule by care type.
      */
     private CareSchedule findScheduleByType(List<CareSchedule> schedules, String careType) {

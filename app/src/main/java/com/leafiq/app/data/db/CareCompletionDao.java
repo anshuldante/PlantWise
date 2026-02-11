@@ -52,4 +52,13 @@ public interface CareCompletionDao {
            "WHERE cs.plant_id = :plantId AND cc.source != 'snooze' " +
            "ORDER BY cc.completed_at DESC LIMIT :limit")
     LiveData<List<CareCompletion>> getLimitedCompletionsForPlant(String plantId, int limit);
+
+    @Query("SELECT cc.* FROM care_completions cc " +
+           "INNER JOIN care_schedules cs ON cc.schedule_id = cs.id " +
+           "WHERE cs.plant_id = :plantId AND cc.source != 'snooze' " +
+           "ORDER BY cc.completed_at DESC")
+    LiveData<List<CareCompletion>> getAllCompletionsForPlant(String plantId);
+
+    @Query("DELETE FROM care_completions WHERE id = :completionId")
+    void deleteCareCompletionById(String completionId);
 }

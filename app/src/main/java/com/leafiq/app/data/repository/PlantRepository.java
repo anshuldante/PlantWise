@@ -718,4 +718,32 @@ public class PlantRepository {
             }
         });
     }
+
+    /**
+     * Gets all care completions for a plant (unlimited, for full-screen history).
+     * LiveData updates automatically when completions change.
+     *
+     * @param plantId Plant ID to get completions for
+     */
+    public LiveData<List<CareCompletion>> getAllCompletionsForPlant(String plantId) {
+        return careCompletionDao.getAllCompletionsForPlant(plantId);
+    }
+
+    /**
+     * Deletes a care completion from the database.
+     * Executes on background thread, result delivered via callback.
+     *
+     * @param completionId Care completion ID to delete
+     * @param callback Callback for success/error
+     */
+    public void deleteCareCompletion(String completionId, RepositoryCallback<Void> callback) {
+        ioExecutor.execute(() -> {
+            try {
+                careCompletionDao.deleteCareCompletionById(completionId);
+                callback.onSuccess(null);
+            } catch (Exception e) {
+                callback.onError(e);
+            }
+        });
+    }
 }
