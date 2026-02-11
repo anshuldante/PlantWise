@@ -2,11 +2,9 @@ package com.leafiq.app.data.db;
 
 import androidx.lifecycle.LiveData;
 import androidx.room.Dao;
-import androidx.room.Delete;
 import androidx.room.Insert;
 import androidx.room.OnConflictStrategy;
 import androidx.room.Query;
-import androidx.room.Update;
 
 import com.leafiq.app.data.entity.CareItem;
 
@@ -22,10 +20,4 @@ public interface CareItemDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     void insertCareItem(CareItem item);
-
-    @Update
-    void updateCareItem(CareItem item);
-
-    @Delete
-    void deleteCareItem(CareItem item);
 }

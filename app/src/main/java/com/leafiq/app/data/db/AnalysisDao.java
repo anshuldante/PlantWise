@@ -66,9 +66,6 @@ public interface AnalysisDao {
     @Query("UPDATE analyses SET parse_status = :status WHERE id = :id")
     void updateParseStatus(String id, String status);
 
-    @Query("UPDATE analyses SET re_analyzed_at = :timestamp, parse_status = 'OK' WHERE id = :id")
-    void markReAnalyzed(String id, long timestamp);
-
     @Query("SELECT COUNT(*) FROM analyses WHERE plant_id = :plantId")
     LiveData<Integer> getAnalysisCountForPlant(String plantId);
 }

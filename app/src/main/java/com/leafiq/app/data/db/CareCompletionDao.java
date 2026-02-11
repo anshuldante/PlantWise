@@ -12,9 +12,6 @@ import java.util.List;
 
 @Dao
 public interface CareCompletionDao {
-    @Query("SELECT * FROM care_completions WHERE schedule_id = :scheduleId ORDER BY completed_at DESC")
-    LiveData<List<CareCompletion>> getCompletionsForSchedule(String scheduleId);
-
     @Query("SELECT cc.* FROM care_completions cc " +
            "INNER JOIN care_schedules cs ON cc.schedule_id = cs.id " +
            "WHERE cs.plant_id = :plantId " +
