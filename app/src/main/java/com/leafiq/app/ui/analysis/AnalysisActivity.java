@@ -10,6 +10,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.text.InputType;
+import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.EditText;
@@ -59,6 +60,7 @@ public class AnalysisActivity extends AppCompatActivity {
 
     public static final String EXTRA_IMAGE_URI = "extra_image_uri";
     public static final String EXTRA_PLANT_ID = "extra_plant_id";
+    public static final String EXTRA_QUICK_DIAGNOSIS = "extra_quick_diagnosis";
     private static final int REQUEST_NOTIFICATION_PERMISSION = 1001;
 
     private ImageView imagePreview;
@@ -88,6 +90,8 @@ public class AnalysisActivity extends AppCompatActivity {
     private Uri localImageUri; // Persistent local copy
     private String plantId;
     private PlantAnalysisResult analysisResult;
+    private boolean isQuickDiagnosis;
+    private boolean qualityOverridden = false;
 
     private KeystoreHelper keystoreHelper;
     private AnalysisViewModel viewModel;
@@ -127,6 +131,10 @@ public class AnalysisActivity extends AppCompatActivity {
         }
 
         plantId = getIntent().getStringExtra(EXTRA_PLANT_ID);
+        isQuickDiagnosis = getIntent().getBooleanExtra(EXTRA_QUICK_DIAGNOSIS, false);
+
+        // Wire Quick Diagnosis flag into ViewModel
+        viewModel.setQuickDiagnosis(isQuickDiagnosis);
 
         // Set up button click listeners
         saveButton.setOnClickListener(v -> handleSaveClick());
@@ -364,8 +372,34 @@ public class AnalysisActivity extends AppCompatActivity {
         if (analysisResult.identification != null) {
             plantCommonName.setText(analysisResult.identification.commonName);
             plantScientificName.setText(analysisResult.identification.scientificName);
+
+            // Show identification notes with Quick Diagnosis language and/or quality override badge
+            StringBuilder notesBuilder = new StringBuilder();
+
             if (analysisResult.identification.notes != null && !analysisResult.identification.notes.isEmpty()) {
-                identificationNotes.setText(analysisResult.identification.notes);
+                notesBuilder.append(analysisResult.identification.notes);
+            }
+
+            // Add Quick Diagnosis language if in Quick mode
+            if (isQuickDiagnosis) {
+                if (notesBuilder.length() > 0) {
+                    notesBuilder.append("\n\n");
+                }
+                notesBuilder.append("Quick assessment — results may be less precise. For detailed analysis, use full analysis with a clearer photo.");
+                Log.i("AnalysisFlow", String.format("quick_diagnosis_used: plantName=%s",
+                        analysisResult.identification.commonName));
+            }
+
+            // Add quality override badge if user overrode quality warning
+            if (qualityOverridden) {
+                if (notesBuilder.length() > 0) {
+                    notesBuilder.append("\n\n");
+                }
+                notesBuilder.append("⚠ Quality override — photo quality was below recommended threshold");
+            }
+
+            if (notesBuilder.length() > 0) {
+                identificationNotes.setText(notesBuilder.toString());
                 identificationNotes.setVisibility(View.VISIBLE);
             }
         }
@@ -529,19 +563,24 @@ public class AnalysisActivity extends AppCompatActivity {
     /**
      * Validates photo quality before starting analysis.
      * Checks brightness, blur, and resolution on background thread.
+     * Uses lenient thresholds for Quick Diagnosis mode.
      */
     private void validatePhotoQuality() {
         executor.execute(() -> {
             try {
                 Uri uriToCheck = localImageUri != null ? localImageUri : imageUri;
                 PhotoQualityChecker.QualityResult result =
-                    PhotoQualityChecker.checkQuality(getContentResolver(), uriToCheck);
+                    PhotoQualityChecker.checkQuality(getContentResolver(), uriToCheck, isQuickDiagnosis);
+
+                // Log quality check with actual scores
+                Log.i("QualityCheck", String.format("photo_quality_check: blur=%.1f brightness=%.2f passed=%b override=%b quick=%b",
+                        result.blurScore, result.brightnessScore, result.passed, result.overrideAllowed, isQuickDiagnosis));
 
                 runOnUiThread(() -> {
                     if (result.passed) {
                         proceedToAnalysis();
                     } else {
-                        showQualityWarning(result.message);
+                        showQualityWarning(result);
                     }
                 });
             } catch (Exception e) {
@@ -564,17 +603,43 @@ public class AnalysisActivity extends AppCompatActivity {
     }
 
     /**
-     * Shows quality warning dialog with override option.
-     * @param message Specific quality issue message
+     * Shows quality warning dialog with two-tier rejection UX.
+     * Borderline failures allow override, egregious failures do not.
+     * @param result Quality check result with issue details
      */
-    private void showQualityWarning(String message) {
-        new AlertDialog.Builder(this)
-            .setTitle("Photo Quality Issue")
-            .setMessage(message)
-            .setPositiveButton("Use Anyway", (d, w) -> proceedToAnalysis())
-            .setNegativeButton("Choose Different Photo", (d, w) -> finish())
-            .setCancelable(false)
-            .show();
+    private void showQualityWarning(PhotoQualityChecker.QualityResult result) {
+        if (result.overrideAllowed) {
+            // Borderline failure - show override option with tips
+            String messageWithTips = result.message + "\n\nTips:\n" +
+                    "• Hold camera steady for sharper photos\n" +
+                    "• Ensure good lighting on the plant\n" +
+                    "• Get close enough to see leaf details";
+
+            new AlertDialog.Builder(this)
+                .setTitle("Photo Quality Issue")
+                .setMessage(messageWithTips)
+                .setPositiveButton("Use Anyway", (d, w) -> {
+                    qualityOverridden = true;
+                    viewModel.setQualityOverridden(true);
+                    Log.i("QualityCheck", String.format("photo_quality_override_used: issueType=%s blur=%.1f brightness=%.2f",
+                            result.issueType, result.blurScore, result.brightnessScore));
+                    proceedToAnalysis();
+                })
+                .setNegativeButton("Choose Different Photo", (d, w) -> finish())
+                .setCancelable(false)
+                .show();
+        } else {
+            // Egregious failure - no override option
+            String messageWithGuidance = result.message + "\n\n" +
+                    "This photo's quality is too low for reliable analysis. Please take a new photo with better conditions.";
+
+            new AlertDialog.Builder(this)
+                .setTitle("Photo Cannot Be Analyzed")
+                .setMessage(messageWithGuidance)
+                .setPositiveButton("Choose Different Photo", (d, w) -> finish())
+                .setCancelable(false)
+                .show();
+        }
     }
 
     /**
