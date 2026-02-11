@@ -443,7 +443,7 @@ public class AnalysisActivity extends AppCompatActivity {
                         result.issueType, result.brightnessScore));
                 proceedToAnalysis();
             })
-            .setNegativeButton("Choose Different Photo", (d, w) -> finish())
+            .setNegativeButton("Choose Different Photo", (d, w) -> navigateToCamera())
             .setCancelable(false)
             .show();
     }
@@ -475,9 +475,19 @@ public class AnalysisActivity extends AppCompatActivity {
         new AlertDialog.Builder(this)
             .setTitle("Photo Cannot Be Analyzed")
             .setMessage(messageWithGuidance)
-            .setPositiveButton("Choose Different Photo", (d, w) -> finish())
+            .setPositiveButton("Choose Different Photo", (d, w) -> navigateToCamera())
             .setCancelable(false)
             .show();
+    }
+
+    /**
+     * Navigates back to camera activity when photo is rejected.
+     * Since CameraActivity finishes itself before starting AnalysisActivity,
+     * we need to explicitly launch a new CameraActivity instance.
+     */
+    private void navigateToCamera() {
+        startActivity(new Intent(this, com.leafiq.app.ui.camera.CameraActivity.class));
+        finish();
     }
 
     /**

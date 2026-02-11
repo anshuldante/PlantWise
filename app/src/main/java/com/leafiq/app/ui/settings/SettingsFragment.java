@@ -188,11 +188,11 @@ public class SettingsFragment extends Fragment {
         String providerName = getProviderDisplayName(provider);
 
         if (keystoreHelper.hasApiKey()) {
-            statusText.setText("Using " + providerName + " - API key configured");
-            // Show masked key hint
             String key = keystoreHelper.getApiKey();
             if (key != null && key.length() > 8) {
-                apiKeyEdit.setHint("..." + key.substring(key.length() - 4));
+                statusText.setText("Using " + providerName + " (..." + key.substring(key.length() - 4) + ")");
+            } else {
+                statusText.setText("Using " + providerName + " - API key configured");
             }
         } else {
             statusText.setText("No API key configured");
