@@ -26,11 +26,28 @@ import java.util.Map;
  * RecyclerView adapter for full-screen care history with month grouping.
  * Displays TYPE_HEADER for month labels and TYPE_ITEM for care completion entries.
  *
- * Supports:
- * - Month grouping with headers
- * - Care type emojis (water, fertilize, repot)
- * - Status computation (On time/Late based on estimated due dates)
- * - No click listener (informational only per user decision)
+ * <p><b>Supports:</b></p>
+ * <ul>
+ *   <li>Month grouping with headers</li>
+ *   <li>Care type emojis (water, fertilize, repot)</li>
+ *   <li>Status computation (On time/Late based on estimated due dates)</li>
+ *   <li>No click listener (informational only per user decision)</li>
+ * </ul>
+ *
+ * <p><b>Status Computation Algorithm:</b></p>
+ * <p>Status (On time/Late) is approximated by walking backward from schedule.nextDue:</p>
+ * <ol>
+ *   <li>Group completions by scheduleId to maintain per-schedule ordering.</li>
+ *   <li>For each completion, find its position in the schedule's completion list (0-indexed).</li>
+ *   <li>Estimate due date: {@code nextDue - ((positionInSchedule + 1) * frequencyDays)}
+ *       <br>Example: If nextDue = March 1, frequencyDays = 7, most recent completion (index 0)
+ *       was due at Feb 22.</li>
+ *   <li>Apply 1-day tolerance window: If {@code completedAt <= estimatedDue + 1 day}, status = "On time".</li>
+ *   <li>If {@code completedAt > estimatedDue + 1 day}, status = "Late".</li>
+ * </ol>
+ *
+ * <p><b>Note:</b> Snooze entries are pre-filtered by the DAO query (WHERE source != 'snooze'),
+ * so this adapter only processes actual care completions (source = 'done').</p>
  */
 public class FullCareHistoryAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 

@@ -414,6 +414,17 @@ public class AnalysisActivity extends AppCompatActivity {
     /**
      * Shows quality warning dialog for borderline failures (override allowed).
      * Displays tips and "Use Anyway" option.
+     *
+     * <p><b>Phase 13 Quality Failure Recording:</b></p>
+     * <ul>
+     *   <li>Records quality failure reason via PhotoTipsManager before displaying dialog.</li>
+     *   <li>issueType values: "blur", "dark", "bright", or "resolution" from PhotoQualityChecker.</li>
+     *   <li>This triggers contextual photo tips on next camera launch with specific guidance
+     *       highlighted based on the exact quality issue (e.g., "blur" → bold "Hold steady").</li>
+     *   <li>Recording happens for BOTH borderline and egregious failures to ensure users
+     *       get guidance after any photo quality issue.</li>
+     * </ul>
+     *
      * @param result Quality check result with issue details
      */
     private void showQualityWarning(PhotoQualityChecker.QualityResult result) {
@@ -444,6 +455,17 @@ public class AnalysisActivity extends AppCompatActivity {
     /**
      * Shows quality rejection dialog for egregious failures (no override).
      * User must choose a different photo.
+     *
+     * <p><b>Phase 13 Quality Failure Recording:</b></p>
+     * <ul>
+     *   <li>Records quality failure reason via PhotoTipsManager before displaying dialog.</li>
+     *   <li>issueType values: "blur", "dark", "bright", or "resolution" from PhotoQualityChecker.</li>
+     *   <li>This triggers contextual photo tips on next camera launch with specific guidance
+     *       highlighted based on the exact quality issue (e.g., "dark" → bold "Good lighting").</li>
+     *   <li>Recording happens for BOTH borderline and egregious failures to ensure users
+     *       get guidance after any photo quality issue.</li>
+     * </ul>
+     *
      * @param result Quality check result with issue details
      */
     private void showQualityRejection(PhotoQualityChecker.QualityResult result) {

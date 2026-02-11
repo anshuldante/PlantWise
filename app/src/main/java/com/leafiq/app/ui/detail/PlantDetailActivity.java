@@ -46,6 +46,24 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
+/**
+ * Plant detail page showing comprehensive plant information and management options.
+ *
+ * <p><b>Phase 13 Feature Enhancements:</b></p>
+ * <ul>
+ *   <li><b>Inline history sections:</b> Displays last 3 care completions and last 3 analyses
+ *       directly on the plant detail page (care-first ordering for prominence).</li>
+ *   <li><b>"View All" navigation:</b> Tapping "View All (N) >" navigates to full-screen
+ *       AnalysisHistoryActivity or CareHistoryActivity with complete history.</li>
+ *   <li><b>Onboarding CTA block:</b> For brand new plants with no history (zero analyses AND
+ *       zero care completions), displays a prominent CTA encouraging the first analysis.</li>
+ *   <li><b>Health trend arrows:</b> Inline analysis entries show green up arrow (improved),
+ *       red down arrow (declined), or gray right arrow (same) by comparing with previous analysis.
+ *       First analysis has no arrow (no baseline).</li>
+ *   <li><b>Analysis navigation:</b> Tapping an inline analysis entry navigates to
+ *       AnalysisDetailActivity (ui.timeline package) for full details.</li>
+ * </ul>
+ */
 public class PlantDetailActivity extends AppCompatActivity {
 
     public static final String EXTRA_PLANT_ID = "extra_plant_id";

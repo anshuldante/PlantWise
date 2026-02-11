@@ -37,6 +37,23 @@ import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+/**
+ * Camera activity for plant photo capture.
+ *
+ * <p><b>Phase 13 Photo Tips Integration:</b></p>
+ * <ul>
+ *   <li><b>Conditional tips display:</b> Photo tips bottom sheet appears in two scenarios:
+ *       (1) First-ever analysis (user has never seen tips), or
+ *       (2) After quality failure recorded by AnalysisActivity.</li>
+ *   <li><b>Auto-suppression:</b> Tips are suppressed only when user explicitly clicks "Got It" button.
+ *       Swipe-dismiss preserves tips for next camera launch (prevents accidental suppression).</li>
+ *   <li><b>Quality failure reasons:</b> AnalysisActivity records issueType ("blur", "dark", "bright",
+ *       "resolution") which drives contextual highlighting in the tips bottom sheet (specific guidance
+ *       for the exact quality issue encountered).</li>
+ *   <li><b>PhotoTipsManager integration:</b> Uses SharedPreferences-based state tracking via
+ *       PhotoTipsManager.shouldShowTips() to determine when to display tips before camera start.</li>
+ * </ul>
+ */
 public class CameraActivity extends AppCompatActivity {
 
     private static final String TAG = "CameraActivity";
