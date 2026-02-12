@@ -9,10 +9,12 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 
 import okhttp3.OkHttpClient;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
+import okhttp3.mockwebserver.SocketPolicy;
 
 public class GeminiProviderTest {
 
@@ -38,25 +40,25 @@ public class GeminiProviderTest {
 
     @Test
     public void supportsVision_returnsTrue() {
-        GeminiProvider provider = new GeminiProvider("test-gemini-key");
+        GeminiProvider provider = new GeminiProvider("test-gemini-key", new OkHttpClient());
         assertThat(provider.supportsVision()).isTrue();
     }
 
     @Test
     public void isConfigured_withApiKey_returnsTrue() {
-        GeminiProvider provider = new GeminiProvider("test-gemini-key");
+        GeminiProvider provider = new GeminiProvider("test-gemini-key", new OkHttpClient());
         assertThat(provider.isConfigured()).isTrue();
     }
 
     @Test
     public void isConfigured_withNullApiKey_returnsFalse() {
-        GeminiProvider provider = new GeminiProvider(null);
+        GeminiProvider provider = new GeminiProvider(null, new OkHttpClient());
         assertThat(provider.isConfigured()).isFalse();
     }
 
     @Test
     public void getDisplayName_returnsGeminiGoogle() {
-        GeminiProvider provider = new GeminiProvider("test-gemini-key");
+        GeminiProvider provider = new GeminiProvider("test-gemini-key", new OkHttpClient());
         assertThat(provider.getDisplayName()).isEqualTo("Gemini (Google)");
     }
 
@@ -121,5 +123,70 @@ public class GeminiProviderTest {
         GeminiProvider provider = new GeminiProvider("test-key",
                 mockWebServer.url("/").toString(), client);
         provider.analyzePhoto("base64data", "analyze");
+    }
+
+    // ==================== Network error tests (09-05) ====================
+
+    @Test
+    public void analyzePhoto_timeout_throwsException() throws Exception {
+        // Use a client with very short timeout for fast test execution
+        OkHttpClient shortTimeoutClient = new OkHttpClient.Builder()
+            .readTimeout(1, TimeUnit.SECONDS)
+            .callTimeout(2, TimeUnit.SECONDS)
+            .build();
+
+        mockWebServer.enqueue(new MockResponse()
+            .setSocketPolicy(SocketPolicy.NO_RESPONSE));
+
+        GeminiProvider provider = new GeminiProvider("test-key",
+            mockWebServer.url("/").toString(), shortTimeoutClient);
+
+        AIProviderException exception = null;
+        try {
+            provider.analyzePhoto("base64data", "analyze");
+        } catch (AIProviderException e) {
+            exception = e;
+        }
+        assertThat(exception).isNotNull();
+    }
+
+    @Test
+    public void analyzePhoto_401_throwsExceptionWithStatusCode() throws Exception {
+        mockWebServer.enqueue(new MockResponse()
+            .setResponseCode(401)
+            .setBody("{\"error\":{\"message\":\"Invalid API key\"}}"));
+
+        GeminiProvider provider = new GeminiProvider("bad-key",
+            mockWebServer.url("/").toString(), client);
+
+        AIProviderException exception = null;
+        try {
+            provider.analyzePhoto("base64data", "analyze");
+        } catch (AIProviderException e) {
+            exception = e;
+        }
+
+        assertThat(exception).isNotNull();
+        assertThat(exception.getHttpStatusCode()).isEqualTo(401);
+    }
+
+    @Test
+    public void analyzePhoto_500_throwsExceptionWithStatusCode() throws Exception {
+        mockWebServer.enqueue(new MockResponse()
+            .setResponseCode(500)
+            .setBody("Internal Server Error"));
+
+        GeminiProvider provider = new GeminiProvider("test-key",
+            mockWebServer.url("/").toString(), client);
+
+        AIProviderException exception = null;
+        try {
+            provider.analyzePhoto("base64data", "analyze");
+        } catch (AIProviderException e) {
+            exception = e;
+        }
+
+        assertThat(exception).isNotNull();
+        assertThat(exception.getHttpStatusCode()).isEqualTo(500);
     }
 }

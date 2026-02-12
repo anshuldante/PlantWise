@@ -2,6 +2,7 @@ package com.leafiq.app.ui.timeline;
 
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.ImageView;
@@ -26,6 +27,8 @@ import com.leafiq.app.data.repository.PlantRepository;
 import com.leafiq.app.util.AppExecutors;
 import com.leafiq.app.util.HealthUtils;
 import com.leafiq.app.util.JsonParser;
+import com.leafiq.app.util.RobustJsonParser;
+import com.leafiq.app.util.WindowInsetsHelper;
 
 import java.io.File;
 import java.text.SimpleDateFormat;
@@ -67,7 +70,10 @@ public class AnalysisDetailActivity extends AppCompatActivity {
     private TextView assumptionsText;
     private TextView analysisTimestamp;
     private TextView analysisProvider;
+    private TextView reAnalyzedTimestamp;
+    private TextView partialInfoBanner;
     private MaterialButton btnCorrect;
+    private MaterialButton btnReanalyze;
 
     private String analysisId;
     private String plantId;
@@ -79,7 +85,15 @@ public class AnalysisDetailActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // Enable edge-to-edge for transparent navigation bar
+        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+
         setContentView(R.layout.activity_analysis_detail);
+
+        // Apply bottom insets to scrollable content
+        View scrollView = findViewById(R.id.scroll_view);
+        WindowInsetsHelper.applyBottomInsets(scrollView);
 
         // Get intent extras
         analysisId = getIntent().getStringExtra(EXTRA_ANALYSIS_ID);
@@ -118,7 +132,10 @@ public class AnalysisDetailActivity extends AppCompatActivity {
         assumptionsText = findViewById(R.id.assumptions_text);
         analysisTimestamp = findViewById(R.id.analysis_timestamp);
         analysisProvider = findViewById(R.id.analysis_provider);
+        reAnalyzedTimestamp = findViewById(R.id.re_analyzed_timestamp);
+        partialInfoBanner = findViewById(R.id.partial_info_banner);
         btnCorrect = findViewById(R.id.btn_correct);
+        btnReanalyze = findViewById(R.id.btn_reanalyze);
     }
 
     private void setupToolbar() {
@@ -148,20 +165,14 @@ public class AnalysisDetailActivity extends AppCompatActivity {
                 currentAnalysis = repository.getAnalysisByIdSync(analysisId);
                 currentPlant = repository.getPlantByIdSync(plantId);
 
-                // Parse raw response if available
-                PlantAnalysisResult parsedResult = null;
-                if (currentAnalysis != null && currentAnalysis.rawResponse != null
-                        && !currentAnalysis.rawResponse.isEmpty()) {
-                    try {
-                        parsedResult = JsonParser.parsePlantAnalysis(currentAnalysis.rawResponse);
-                    } catch (Exception e) {
-                        // If parsing fails, we'll use fallback data from Analysis entity
-                    }
-                }
+                // Parse raw response using RobustJsonParser
+                RobustJsonParser.ParseResult parseResult = RobustJsonParser.parse(
+                        currentAnalysis != null ? currentAnalysis.rawResponse : null);
+                PlantAnalysisResult parsedResult = parseResult.result;
+                String parseStatus = parseResult.parseStatus;
 
                 // Post to main thread to update UI
-                final PlantAnalysisResult finalParsedResult = parsedResult;
-                runOnUiThread(() -> displayAnalysis(finalParsedResult));
+                runOnUiThread(() -> displayAnalysis(parsedResult, parseStatus));
 
             } catch (Exception e) {
                 runOnUiThread(() -> {
@@ -173,14 +184,32 @@ public class AnalysisDetailActivity extends AppCompatActivity {
     }
 
     /**
-     * Displays analysis data in UI.
+     * Displays analysis data in UI with graceful fallback for parse failures.
      * Called on main thread.
      *
      * @param parsedResult Parsed PlantAnalysisResult (may be null if parsing failed)
+     * @param parseStatus Parse status ("OK", "PARTIAL", "FAILED", "EMPTY")
      */
-    private void displayAnalysis(PlantAnalysisResult parsedResult) {
+    private void displayAnalysis(PlantAnalysisResult parsedResult, String parseStatus) {
         if (currentAnalysis == null || currentPlant == null) {
             return;
+        }
+
+        // Determine fallback display mode based on parse status
+        boolean isOk = "OK".equals(parseStatus);
+        boolean isPartial = "PARTIAL".equals(parseStatus);
+        boolean isFailed = "FAILED".equals(parseStatus) || "EMPTY".equals(parseStatus);
+        boolean isRecoverable = hasRecoverableData();
+
+        // Show partial info banner if applicable
+        if (isPartial) {
+            partialInfoBanner.setText("ℹ️  Some details couldn't be loaded");
+            partialInfoBanner.setVisibility(View.VISIBLE);
+        } else if (isFailed && !isRecoverable) {
+            partialInfoBanner.setText("This analysis can't be recovered");
+            partialInfoBanner.setVisibility(View.VISIBLE);
+        } else {
+            partialInfoBanner.setVisibility(View.GONE);
         }
 
         // Photo
@@ -191,21 +220,41 @@ public class AnalysisDetailActivity extends AppCompatActivity {
                     .into(analysisPhoto);
         }
 
-        // Plant name (nickname takes precedence, then common name, fallback to "Unknown Plant")
+        // Plant name - for FAILED/EMPTY, use Plant entity data
         String displayName = "Unknown Plant";
-        if (currentPlant.nickname != null && !currentPlant.nickname.isEmpty()) {
-            displayName = currentPlant.nickname;
-        } else if (currentPlant.commonName != null && !currentPlant.commonName.isEmpty()) {
-            displayName = currentPlant.commonName;
+        if (isFailed) {
+            // Use plant entity data only
+            if (currentPlant.nickname != null && !currentPlant.nickname.isEmpty()) {
+                displayName = currentPlant.nickname;
+            } else if (currentPlant.commonName != null && !currentPlant.commonName.isEmpty()) {
+                displayName = currentPlant.commonName;
+            }
+        } else {
+            // OK or PARTIAL - use parsed data if available
+            if (currentPlant.nickname != null && !currentPlant.nickname.isEmpty()) {
+                displayName = currentPlant.nickname;
+            } else if (parsedResult != null && parsedResult.identification != null
+                    && parsedResult.identification.commonName != null
+                    && !parsedResult.identification.commonName.isEmpty()
+                    && !parsedResult.identification.commonName.equals("Unknown")) {
+                displayName = parsedResult.identification.commonName;
+            } else if (currentPlant.commonName != null && !currentPlant.commonName.isEmpty()) {
+                displayName = currentPlant.commonName;
+            }
         }
         plantName.setText(displayName);
 
-        // Scientific name (from parsed result if available, else from plant entity)
+        // Scientific name
         String scientificNameText = "";
-        if (parsedResult != null && parsedResult.identification != null
-                && parsedResult.identification.scientificName != null
-                && !parsedResult.identification.scientificName.isEmpty()) {
-            scientificNameText = parsedResult.identification.scientificName;
+        if (isOk || isPartial) {
+            // Try parsed result first
+            if (parsedResult != null && parsedResult.identification != null
+                    && parsedResult.identification.scientificName != null
+                    && !parsedResult.identification.scientificName.isEmpty()) {
+                scientificNameText = parsedResult.identification.scientificName;
+            } else if (currentPlant.scientificName != null && !currentPlant.scientificName.isEmpty()) {
+                scientificNameText = currentPlant.scientificName;
+            }
         } else if (currentPlant.scientificName != null && !currentPlant.scientificName.isEmpty()) {
             scientificNameText = currentPlant.scientificName;
         }
@@ -217,8 +266,8 @@ public class AnalysisDetailActivity extends AppCompatActivity {
             scientificName.setVisibility(View.GONE);
         }
 
-        // Confidence badge (from parsed result if available)
-        if (parsedResult != null && parsedResult.identification != null
+        // Confidence badge - only show for OK or PARTIAL with data
+        if ((isOk || isPartial) && parsedResult != null && parsedResult.identification != null
                 && parsedResult.identification.confidence != null
                 && !parsedResult.identification.confidence.isEmpty()) {
             String confidenceText = parsedResult.identification.confidence.substring(0, 1).toUpperCase()
@@ -229,7 +278,7 @@ public class AnalysisDetailActivity extends AppCompatActivity {
             confidenceBadge.setVisibility(View.GONE);
         }
 
-        // Health badge (text label with color)
+        // Health badge - always show from Analysis entity (always available)
         String healthLabel = HealthUtils.getHealthLabel(currentAnalysis.healthScore);
         int healthColorRes = HealthUtils.getHealthColorRes(currentAnalysis.healthScore);
         healthBadge.setText(healthLabel);
@@ -238,14 +287,20 @@ public class AnalysisDetailActivity extends AppCompatActivity {
         GradientDrawable healthBackground = (GradientDrawable) healthBadge.getBackground();
         healthBackground.setColor(ContextCompat.getColor(this, healthColorRes));
 
-        // Diagnosis (from parsed result if available, else from analysis summary)
+        // Diagnosis - priority order based on parse status
         String diagnosisTextContent = "";
-        if (parsedResult != null && parsedResult.healthAssessment != null
-                && parsedResult.healthAssessment.summary != null
-                && !parsedResult.healthAssessment.summary.isEmpty()) {
-            diagnosisTextContent = parsedResult.healthAssessment.summary;
-        } else if (currentAnalysis.summary != null && !currentAnalysis.summary.isEmpty()) {
-            diagnosisTextContent = currentAnalysis.summary;
+        if (isFailed) {
+            // Use Analysis entity summary only
+            diagnosisTextContent = currentAnalysis.summary != null ? currentAnalysis.summary : "";
+        } else {
+            // OK or PARTIAL - prefer parsed result
+            if (parsedResult != null && parsedResult.healthAssessment != null
+                    && parsedResult.healthAssessment.summary != null
+                    && !parsedResult.healthAssessment.summary.isEmpty()) {
+                diagnosisTextContent = parsedResult.healthAssessment.summary;
+            } else if (currentAnalysis.summary != null && !currentAnalysis.summary.isEmpty()) {
+                diagnosisTextContent = currentAnalysis.summary;
+            }
         }
 
         if (!diagnosisTextContent.isEmpty()) {
@@ -254,16 +309,22 @@ public class AnalysisDetailActivity extends AppCompatActivity {
             diagnosisText.setText("No diagnosis available");
         }
 
-        // Care plan (format from parsed result)
-        if (parsedResult != null && parsedResult.carePlan != null) {
+        // Care plan - only show for OK status or PARTIAL with carePlan data
+        if (isFailed) {
+            // Show "Full details unavailable" message
+            carePlanText.setText("Full details unavailable");
+            carePlanCard.setVisibility(View.VISIBLE);
+        } else if (parsedResult != null && parsedResult.carePlan != null) {
             String carePlanFormatted = formatCarePlan(parsedResult.carePlan);
             if (!carePlanFormatted.isEmpty()) {
                 carePlanText.setText(carePlanFormatted);
                 carePlanCard.setVisibility(View.VISIBLE);
             } else {
+                // PARTIAL with no care plan - hide card
                 carePlanCard.setVisibility(View.GONE);
             }
         } else {
+            // PARTIAL with null carePlan - hide card
             carePlanCard.setVisibility(View.GONE);
         }
 
@@ -280,8 +341,66 @@ public class AnalysisDetailActivity extends AppCompatActivity {
         String timestampText = "Analyzed on " + dateFormat.format(new Date(currentAnalysis.createdAt));
         analysisTimestamp.setText(timestampText);
 
+        // Re-analyzed timestamp (if applicable)
+        if (currentAnalysis.reAnalyzedAt != null) {
+            String reAnalyzedText = "Re-analyzed on " + dateFormat.format(new Date(currentAnalysis.reAnalyzedAt));
+            reAnalyzedTimestamp.setText(reAnalyzedText);
+            reAnalyzedTimestamp.setVisibility(View.VISIBLE);
+        } else {
+            reAnalyzedTimestamp.setVisibility(View.GONE);
+        }
+
         // Provider info (hide for now - would need to parse from rawResponse metadata)
         analysisProvider.setVisibility(View.GONE);
+
+        // Re-analyze button - show when parse failed/partial AND photo exists
+        boolean showReanalyze = (isPartial || isFailed) && hasPhotoAvailable();
+        if (showReanalyze) {
+            btnReanalyze.setVisibility(View.VISIBLE);
+            btnReanalyze.setOnClickListener(v -> handleReanalyze());
+            Log.i("AnalysisFlow", String.format("analysis_reanalyzed: analysisId=%s parseStatus=%s",
+                    analysisId, parseStatus));
+        } else {
+            btnReanalyze.setVisibility(View.GONE);
+        }
+    }
+
+    /**
+     * Check if analysis has recoverable data (photo or identifying metadata).
+     * Per CONTEXT.md: "if no photo AND no identifying metadata exist, show 'This analysis can't be recovered'"
+     */
+    private boolean hasRecoverableData() {
+        boolean hasPhoto = hasPhotoAvailable();
+        boolean hasMetadata = (currentPlant.commonName != null && !currentPlant.commonName.isEmpty());
+        return hasPhoto || hasMetadata;
+    }
+
+    /**
+     * Check if the original analysis photo is still available on disk.
+     */
+    private boolean hasPhotoAvailable() {
+        if (currentAnalysis.photoPath == null || currentAnalysis.photoPath.isEmpty()) {
+            return false;
+        }
+        File photoFile = new File(currentAnalysis.photoPath);
+        return photoFile.exists();
+    }
+
+    /**
+     * Handle re-analyze button click.
+     * Navigate back to AnalysisActivity with the original photo for re-analysis.
+     */
+    private void handleReanalyze() {
+        if (currentAnalysis == null || !hasPhotoAvailable()) {
+            Toast.makeText(this, "Original photo not available", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // TODO: Navigate to AnalysisActivity with photo URI and plantId
+        // For now, show a toast indicating the feature is pending full implementation
+        Toast.makeText(this, "Re-analyze feature - full navigation pending", Toast.LENGTH_SHORT).show();
+        Log.i("AnalysisFlow", String.format("analysis_reanalyzed: analysisId=%s parseStatus=%s",
+                currentAnalysis.id, currentAnalysis.parseStatus));
     }
 
     /**

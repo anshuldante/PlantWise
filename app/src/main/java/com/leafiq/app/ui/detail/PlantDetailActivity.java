@@ -28,6 +28,8 @@ import com.leafiq.app.ui.analysis.AnalysisActivity;
 import com.leafiq.app.ui.camera.CameraActivity;
 import com.leafiq.app.ui.timeline.AnalysisDetailActivity;
 import com.leafiq.app.ui.timeline.SparklineView;
+import com.leafiq.app.util.ImageUtils;
+import com.leafiq.app.util.WindowInsetsHelper;
 import com.bumptech.glide.Glide;
 import com.google.android.material.appbar.CollapsingToolbarLayout;
 import com.google.android.material.button.MaterialButton;
@@ -44,6 +46,24 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
+/**
+ * Plant detail page showing comprehensive plant information and management options.
+ *
+ * <p><b>Phase 13 Feature Enhancements:</b></p>
+ * <ul>
+ *   <li><b>Inline history sections:</b> Displays last 3 care completions and last 3 analyses
+ *       directly on the plant detail page (care-first ordering for prominence).</li>
+ *   <li><b>"View All" navigation:</b> Tapping "View All (N) >" navigates to full-screen
+ *       AnalysisHistoryActivity or CareHistoryActivity with complete history.</li>
+ *   <li><b>Onboarding CTA block:</b> For brand new plants with no history (zero analyses AND
+ *       zero care completions), displays a prominent CTA encouraging the first analysis.</li>
+ *   <li><b>Health trend arrows:</b> Inline analysis entries show green up arrow (improved),
+ *       red down arrow (declined), or gray right arrow (same) by comparing with previous analysis.
+ *       First analysis has no arrow (no baseline).</li>
+ *   <li><b>Analysis navigation:</b> Tapping an inline analysis entry navigates to
+ *       AnalysisDetailActivity (ui.timeline package) for full details.</li>
+ * </ul>
+ */
 public class PlantDetailActivity extends AppCompatActivity {
 
     public static final String EXTRA_PLANT_ID = "extra_plant_id";
@@ -57,8 +77,6 @@ public class PlantDetailActivity extends AppCompatActivity {
     private MaterialCardView summaryCard;
     private TextView latestSummary;
     private TextView lastAnalyzedDate;
-    private TextView historyLabel;
-    private RecyclerView analysisHistory;
     private FloatingActionButton fabReanalyze;
     private MaterialButton deleteButton;
     private MaterialButton correctButton;
@@ -70,20 +88,33 @@ public class PlantDetailActivity extends AppCompatActivity {
     private SwitchMaterial switchReminders;
     private LinearLayout schedulesContainer;
     private TextView snoozeSuggestion;
+    private LinearLayout onboardingCtaBlock;
+    private MaterialButton onboardingAnalyzeButton;
+    private TextView onboardingCareLink;
     private LinearLayout careHistorySection;
-    private RecyclerView careHistoryRecycler;
+    private TextView careHistoryViewAll;
+    private RecyclerView careHistoryInlineRecycler;
     private TextView careHistoryEmpty;
+    private LinearLayout analysisHistorySection;
+    private TextView analysisHistoryViewAll;
+    private RecyclerView analysisHistoryInlineRecycler;
+    private TextView analysisHistoryEmpty;
 
     private String plantId;
     private Plant currentPlant;
     private Analysis latestAnalysis;
-    private AnalysisHistoryAdapter adapter;
-    private CareHistoryAdapter careHistoryAdapter;
+    private AnalysisHistoryInlineAdapter analysisInlineAdapter;
+    private CareHistoryInlineAdapter careInlineAdapter;
     private List<CareSchedule> currentSchedules;
+    private List<Analysis> fullAnalysisList;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // Enable edge-to-edge for transparent navigation bar
+        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+
         setContentView(R.layout.activity_plant_detail);
 
         plantId = getIntent().getStringExtra(EXTRA_PLANT_ID);
@@ -117,8 +148,6 @@ public class PlantDetailActivity extends AppCompatActivity {
         summaryCard = findViewById(R.id.summary_card);
         latestSummary = findViewById(R.id.latest_summary);
         lastAnalyzedDate = findViewById(R.id.last_analyzed_date);
-        historyLabel = findViewById(R.id.history_label);
-        analysisHistory = findViewById(R.id.analysis_history);
         fabReanalyze = findViewById(R.id.fab_reanalyze);
         deleteButton = findViewById(R.id.btn_delete);
         correctButton = findViewById(R.id.btn_correct_analysis);
@@ -130,13 +159,50 @@ public class PlantDetailActivity extends AppCompatActivity {
         switchReminders = findViewById(R.id.switch_reminders);
         schedulesContainer = findViewById(R.id.schedules_container);
         snoozeSuggestion = findViewById(R.id.snooze_suggestion);
+        onboardingCtaBlock = findViewById(R.id.onboarding_cta_block);
+        onboardingAnalyzeButton = findViewById(R.id.onboarding_analyze_button);
+        onboardingCareLink = findViewById(R.id.onboarding_care_link);
         careHistorySection = findViewById(R.id.care_history_section);
-        careHistoryRecycler = findViewById(R.id.care_history_recycler);
+        careHistoryViewAll = findViewById(R.id.care_history_view_all);
+        careHistoryInlineRecycler = findViewById(R.id.care_history_inline_recycler);
         careHistoryEmpty = findViewById(R.id.care_history_empty);
+        analysisHistorySection = findViewById(R.id.analysis_history_section);
+        analysisHistoryViewAll = findViewById(R.id.analysis_history_view_all);
+        analysisHistoryInlineRecycler = findViewById(R.id.analysis_history_inline_recycler);
+        analysisHistoryEmpty = findViewById(R.id.analysis_history_empty);
 
         setupInputListeners();
         setupReminderToggle();
-        setupCareHistoryRecycler();
+        setupInlineAdapters();
+        setupOnboardingCta();
+        setupViewAllLinks();
+
+        // Tap image to open full-screen viewer
+        plantImage.setOnClickListener(v -> {
+            if (currentPlant != null) {
+                // Prefer original photo, fall back to high-res thumbnail
+                viewModel.getLatestPhotoPath(currentPlant.id, photoPath -> {
+                    runOnUiThread(() -> {
+                        String imagePath = photoPath;
+                        if (imagePath == null && currentPlant.highResThumbnailPath != null) {
+                            imagePath = currentPlant.highResThumbnailPath;
+                        }
+                        if (imagePath == null && currentPlant.thumbnailPath != null) {
+                            imagePath = currentPlant.thumbnailPath;
+                        }
+                        if (imagePath != null) {
+                            Intent intent = new Intent(PlantDetailActivity.this, ImageViewerActivity.class);
+                            intent.putExtra(ImageViewerActivity.EXTRA_IMAGE_PATH, imagePath);
+                            startActivity(intent);
+                        }
+                    });
+                });
+            }
+        });
+
+        // Apply bottom insets to scrollable content so it's visible above system nav
+        androidx.core.widget.NestedScrollView scrollContent = findViewById(R.id.scroll_content);
+        WindowInsetsHelper.applyBottomInsets(scrollContent);
     }
 
     private void setupInputListeners() {
@@ -256,29 +322,84 @@ public class PlantDetailActivity extends AppCompatActivity {
     }
 
     private void setupRecyclerView() {
-        adapter = new AnalysisHistoryAdapter(analysis -> {
-            // Open AnalysisDetailActivity when history entry is clicked
+        // This method is no longer needed - moved to setupInlineAdapters
+    }
+
+    private void setupCareHistoryRecycler() {
+        // This method is no longer needed - moved to setupInlineAdapters
+    }
+
+    private void setupInlineAdapters() {
+        // Analysis inline adapter with click to navigate to AnalysisDetailActivity
+        analysisInlineAdapter = new AnalysisHistoryInlineAdapter(analysis -> {
             Intent intent = new Intent(this, AnalysisDetailActivity.class);
             intent.putExtra(AnalysisDetailActivity.EXTRA_ANALYSIS_ID, analysis.id);
             intent.putExtra(AnalysisDetailActivity.EXTRA_PLANT_ID, plantId);
             startActivity(intent);
         });
-        analysisHistory.setLayoutManager(new LinearLayoutManager(this));
-        analysisHistory.setAdapter(adapter);
+        analysisHistoryInlineRecycler.setLayoutManager(new LinearLayoutManager(this));
+        analysisHistoryInlineRecycler.setAdapter(analysisInlineAdapter);
+
+        // Care inline adapter
+        careInlineAdapter = new CareHistoryInlineAdapter();
+        careHistoryInlineRecycler.setLayoutManager(new LinearLayoutManager(this));
+        careHistoryInlineRecycler.setAdapter(careInlineAdapter);
     }
 
-    private void setupCareHistoryRecycler() {
-        careHistoryAdapter = new CareHistoryAdapter();
-        careHistoryRecycler.setLayoutManager(new LinearLayoutManager(this));
-        careHistoryRecycler.setAdapter(careHistoryAdapter);
+    private void setupOnboardingCta() {
+        // "Analyze Plant" button
+        onboardingAnalyzeButton.setOnClickListener(v -> {
+            Intent intent = new Intent(this, CameraActivity.class);
+            intent.putExtra(CameraActivity.EXTRA_PLANT_ID, plantId);
+            startActivity(intent);
+        });
+
+        // "Record a care activity" link - stub for now
+        onboardingCareLink.setOnClickListener(v -> {
+            Toast.makeText(this, "Coming soon", Toast.LENGTH_SHORT).show();
+        });
+    }
+
+    private void setupViewAllLinks() {
+        // Analysis history "View All" link
+        analysisHistoryViewAll.setOnClickListener(v -> {
+            Intent intent = new Intent(this, AnalysisHistoryActivity.class);
+            intent.putExtra(AnalysisHistoryActivity.EXTRA_PLANT_ID, plantId);
+            startActivity(intent);
+        });
+
+        // Care history "View All" link
+        careHistoryViewAll.setOnClickListener(v -> {
+            Intent intent = new Intent(this, CareHistoryActivity.class);
+            intent.putExtra(CareHistoryActivity.EXTRA_PLANT_ID, plantId);
+            startActivity(intent);
+        });
     }
 
     private void observeData() {
         viewModel.getPlant(plantId).observe(this, this::displayPlant);
+
+        // Track if we have any history for onboarding CTA logic
+        final boolean[] hasAnalyses = {false};
+        final boolean[] hasCareCompletions = {false};
+
         viewModel.getAnalyses(plantId).observe(this, analyses -> {
-            if (analyses != null && !analyses.isEmpty()) {
-                historyLabel.setVisibility(View.VISIBLE);
-                adapter.submitList(analyses);
+            hasAnalyses[0] = analyses != null && !analyses.isEmpty();
+
+            if (hasAnalyses[0]) {
+                analysisHistorySection.setVisibility(View.VISIBLE);
+
+                // Store full list for trend computation
+                fullAnalysisList = analyses;
+
+                // Pass full list to adapter for trend arrows
+                analysisInlineAdapter.setFullAnalysisList(analyses);
+
+                // Limit to 3 entries for inline display
+                List<Analysis> limitedAnalyses = analyses.size() > 3
+                    ? analyses.subList(0, 3)
+                    : analyses;
+                analysisInlineAdapter.submitList(limitedAnalyses);
 
                 // Show latest analysis summary
                 Analysis latest = analyses.get(0);
@@ -294,7 +415,12 @@ public class PlantDetailActivity extends AppCompatActivity {
 
                 // Update sparkline with health score trend
                 updateSparkline(analyses, currentPlant != null ? currentPlant.latestHealthScore : 0);
+            } else {
+                analysisHistorySection.setVisibility(View.GONE);
             }
+
+            // Update onboarding CTA visibility
+            updateOnboardingCta(hasAnalyses[0], hasCareCompletions[0]);
         });
 
         // Observe care schedules
@@ -308,34 +434,66 @@ public class PlantDetailActivity extends AppCompatActivity {
             }
         });
 
-        // Observe care completions
-        viewModel.getRecentCompletionsForPlant(plantId, 10).observe(this, completions -> {
-            if (completions != null && !completions.isEmpty() && currentSchedules != null) {
+        // Observe care completions (limited to 3 for inline display)
+        viewModel.getLimitedCompletions(plantId, 3).observe(this, completions -> {
+            hasCareCompletions[0] = completions != null && !completions.isEmpty();
+
+            if (hasCareCompletions[0] && currentSchedules != null) {
                 careHistorySection.setVisibility(View.VISIBLE);
 
-                // Build careTypeMap from schedules
+                // Build careTypeMap and scheduleMap from schedules
                 java.util.Map<String, String> careTypeMap = new java.util.HashMap<>();
+                java.util.Map<String, CareSchedule> scheduleMap = new java.util.HashMap<>();
                 for (CareSchedule schedule : currentSchedules) {
                     careTypeMap.put(schedule.id, schedule.careType);
+                    scheduleMap.put(schedule.id, schedule);
                 }
 
                 // Update adapter
-                careHistoryAdapter.setCareTypeMap(careTypeMap);
-                careHistoryAdapter.submitList(completions);
+                careInlineAdapter.setCareTypeMap(careTypeMap);
+                careInlineAdapter.setScheduleMap(scheduleMap);
+                careInlineAdapter.submitList(completions);
 
                 // Show/hide empty state
-                careHistoryRecycler.setVisibility(View.VISIBLE);
+                careHistoryInlineRecycler.setVisibility(View.VISIBLE);
                 careHistoryEmpty.setVisibility(View.GONE);
-            } else if (currentSchedules != null && !currentSchedules.isEmpty()) {
-                // Have schedules but no completions yet
-                careHistorySection.setVisibility(View.VISIBLE);
-                careHistoryRecycler.setVisibility(View.GONE);
-                careHistoryEmpty.setVisibility(View.VISIBLE);
             } else {
-                // No schedules, hide entire section
+                // No completions, hide entire section (or show empty if we have schedules)
                 careHistorySection.setVisibility(View.GONE);
             }
+
+            // Update onboarding CTA visibility
+            updateOnboardingCta(hasAnalyses[0], hasCareCompletions[0]);
         });
+
+        // Observe counts for "View All" links
+        viewModel.getAnalysisCount(plantId).observe(this, count -> {
+            if (count != null && count > 0) {
+                analysisHistoryViewAll.setText("(" + count + ") >");
+            }
+        });
+
+        viewModel.getCareCompletionCount(plantId).observe(this, count -> {
+            if (count != null && count > 0) {
+                careHistoryViewAll.setText("(" + count + ") >");
+            }
+        });
+    }
+
+    /**
+     * Update onboarding CTA visibility based on history presence.
+     * Show CTA only when BOTH analyses and care completions are empty.
+     */
+    private void updateOnboardingCta(boolean hasAnalyses, boolean hasCareCompletions) {
+        if (!hasAnalyses && !hasCareCompletions) {
+            // Brand new plant - show onboarding CTA, hide history sections
+            onboardingCtaBlock.setVisibility(View.VISIBLE);
+            analysisHistorySection.setVisibility(View.GONE);
+            careHistorySection.setVisibility(View.GONE);
+        } else {
+            // Has some history - hide onboarding CTA, show sections
+            onboardingCtaBlock.setVisibility(View.GONE);
+        }
     }
 
     /**
@@ -386,10 +544,33 @@ public class PlantDetailActivity extends AppCompatActivity {
         setHealthScoreColor(plant.latestHealthScore);
 
         if (plant.thumbnailPath != null && !plant.thumbnailPath.isEmpty()) {
-            Glide.with(this)
-                .load(new File(plant.thumbnailPath))
-                .centerCrop()
-                .into(plantImage);
+            File lowRes = new File(plant.thumbnailPath);
+
+            if (plant.highResThumbnailPath != null && !plant.highResThumbnailPath.isEmpty()) {
+                File highRes = new File(plant.highResThumbnailPath);
+                if (highRes.exists()) {
+                    // Progressive load: low-res first, then high-res
+                    Glide.with(this)
+                        .load(highRes)
+                        .thumbnail(Glide.with(this).load(lowRes))
+                        .centerCrop()
+                        .into(plantImage);
+                } else {
+                    // High-res path set but file missing — fall back and regenerate
+                    Glide.with(this)
+                        .load(lowRes)
+                        .centerCrop()
+                        .into(plantImage);
+                    regenerateHighResThumbnail(plant);
+                }
+            } else {
+                // No high-res path — show low-res and trigger lazy migration
+                Glide.with(this)
+                    .load(lowRes)
+                    .centerCrop()
+                    .into(plantImage);
+                regenerateHighResThumbnail(plant);
+            }
         }
 
         // Populate nickname and location inputs
@@ -412,6 +593,45 @@ public class PlantDetailActivity extends AppCompatActivity {
         }
         ((GradientDrawable) healthScore.getBackground()).setColor(
             ContextCompat.getColor(this, colorRes));
+    }
+
+    /**
+     * Lazy migration: generate high-res thumbnail for existing plants that only have 256px.
+     * Runs on background thread, updates UI when ready.
+     */
+    private void regenerateHighResThumbnail(Plant plant) {
+        // Find the original photo path from the latest analysis
+        viewModel.getLatestPhotoPath(plant.id, photoPath -> {
+            if (photoPath == null) return;
+
+            // Generate high-res on background thread
+            String highResPath = ImageUtils.generateHighResThumbnailFromFile(
+                getApplicationContext(), photoPath, plant.id);
+
+            if (highResPath != null) {
+                // Update plant record
+                plant.highResThumbnailPath = highResPath;
+                plant.updatedAt = System.currentTimeMillis();
+                viewModel.updatePlant(plant, new com.leafiq.app.data.repository.PlantRepository.RepositoryCallback<Void>() {
+                    @Override
+                    public void onSuccess(Void result) {
+                        // Swap to high-res in UI
+                        runOnUiThread(() -> {
+                            if (!isFinishing()) {
+                                Glide.with(PlantDetailActivity.this)
+                                    .load(new File(highResPath))
+                                    .centerCrop()
+                                    .into(plantImage);
+                            }
+                        });
+                    }
+                    @Override
+                    public void onError(Exception e) {
+                        // Silently fail — low-res thumbnail still visible
+                    }
+                });
+            }
+        });
     }
 
     private void showDeleteConfirmation() {

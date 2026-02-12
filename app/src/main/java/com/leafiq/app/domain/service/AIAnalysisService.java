@@ -90,7 +90,7 @@ public class AIAnalysisService {
 
     /**
      * Checks if the provider supports vision (image analysis).
-     * Text-only providers (like Perplexity's sonar model) will return false.
+     * Text-only providers will return false.
      *
      * @param provider The AI provider to check
      * @return true if provider supports image analysis, false otherwise

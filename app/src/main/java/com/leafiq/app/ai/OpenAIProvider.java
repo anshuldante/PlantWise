@@ -8,7 +8,6 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.IOException;
-import java.util.concurrent.TimeUnit;
 
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -23,13 +22,10 @@ public class OpenAIProvider implements AIProvider {
     private final String apiUrl;
     private final OkHttpClient client;
 
-    public OpenAIProvider(String apiKey) {
+    public OpenAIProvider(String apiKey, OkHttpClient client) {
         this.apiKey = apiKey;
         this.apiUrl = DEFAULT_API_URL;
-        this.client = new OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
-            .build();
+        this.client = client;
     }
 
     // Package-private constructor for testing with MockWebServer
@@ -85,9 +81,8 @@ public class OpenAIProvider implements AIProvider {
 
             try (Response response = client.newCall(request).execute()) {
                 if (!response.isSuccessful()) {
-                    String errorBody = response.body() != null ? response.body().string() : "Unknown error";
                     throw new AIProviderException(
-                        "API error: " + response.code() + " " + response.message() + " - " + errorBody);
+                        "API error: " + response.code() + " " + response.message(), null, response.code());
                 }
 
                 String responseBody = response.body().string();
@@ -116,7 +111,7 @@ public class OpenAIProvider implements AIProvider {
                 return result;
             }
         } catch (JSONException | IOException e) {
-            throw new AIProviderException("Analysis failed: " + e.getMessage(), e);
+            throw new AIProviderException("Analysis failed: " + e.getMessage(), e, 0);
         }
     }
 

@@ -1,6 +1,7 @@
 package com.leafiq.app;
 
 import android.content.Intent;
+import android.graphics.drawable.BitmapDrawable;
 import android.os.Bundle;
 import android.view.GestureDetector;
 import android.view.Menu;
@@ -20,12 +21,16 @@ import androidx.fragment.app.Fragment;
 import com.leafiq.app.ai.AIProvider;
 import com.leafiq.app.ai.AIProviderFactory;
 import com.leafiq.app.ui.camera.CameraActivity;
+
+import okhttp3.OkHttpClient;
 import com.leafiq.app.ui.care.CareOverviewActivity;
 import com.leafiq.app.ui.diagnosis.QuickDiagnosisActivity;
 import com.leafiq.app.ui.library.LibraryFragment;
 import com.leafiq.app.ui.settings.SettingsFragment;
 import com.leafiq.app.ui.timeline.TimelineFragment;
+import com.leafiq.app.util.EmojiDrawableFactory;
 import com.leafiq.app.util.KeystoreHelper;
+import com.leafiq.app.util.WindowInsetsHelper;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 
 public class MainActivity extends AppCompatActivity {
@@ -36,6 +41,14 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // Check if database migration failed during app startup
+        LeafIQApplication app = (LeafIQApplication) getApplication();
+        if (app.isMigrationFailed()) {
+            LeafIQApplication.showMigrationErrorAndExit(this);
+            return;
+        }
+
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_main);
 
@@ -44,6 +57,10 @@ public class MainActivity extends AppCompatActivity {
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, 0);
             return insets;
         });
+
+        // Apply bottom insets to BottomNavigationView so it sits above system nav
+        BottomNavigationView bottomNavView = findViewById(R.id.bottom_navigation);
+        WindowInsetsHelper.applyBottomInsets(bottomNavView);
 
         // Setup toolbar
         Toolbar toolbar = findViewById(R.id.toolbar);
@@ -90,6 +107,14 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void setupBottomNavigation() {
+        // Set potted plant emoji icon for My Garden tab (per UX-04)
+        BitmapDrawable emojiIcon = EmojiDrawableFactory.createEmojiDrawable(this, "\uD83E\uDEB4", 24);
+        MenuItem gardenItem = bottomNav.getMenu().findItem(R.id.nav_library);
+        gardenItem.setIcon(emojiIcon);
+
+        // Disable icon tinting to preserve emoji colors (affects all tabs)
+        bottomNav.setItemIconTintList(null);
+
         bottomNav.setOnItemSelectedListener(item -> {
             int itemId = item.getItemId();
             if (itemId == R.id.nav_library) {
@@ -155,7 +180,8 @@ public class MainActivity extends AppCompatActivity {
         }
 
         try {
-            AIProvider provider = AIProviderFactory.create(providerName, apiKey);
+            OkHttpClient client = ((LeafIQApplication) getApplication()).getHttpClient();
+            AIProvider provider = AIProviderFactory.create(providerName, apiKey, client);
             if (!provider.supportsVision()) {
                 Toast.makeText(this, R.string.quick_diagnosis_provider_required, Toast.LENGTH_LONG).show();
                 return;

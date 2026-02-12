@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:paddingStart="16dp"
+    android:paddingEnd="16dp"
+    android:paddingTop="12dp"
+    android:paddingBottom="12dp"
+    android:gravity="center_vertical"
+    android:background="?attr/selectableItemBackground">
+
+    <!-- Health Score Circle -->
+    <TextView
+        android:id="@+id/health_score_circle"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:background="@drawable/health_score_background"
+        android:gravity="center"
+        android:textAppearance="?attr/textAppearanceBodySmall"
+        android:textColor="@color/white"
+        android:textStyle="bold"
+        tools:text="8" />
+
+    <!-- Content Column -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_marginStart="12dp"
+        android:orientation="vertical">
+
+        <!-- Summary -->
+        <TextView
+            android:id="@+id/analysis_summary_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textAppearance="?attr/textAppearanceBodyMedium"
+            android:textColor="@color/text_primary"
+            tools:text="Plant looks healthy with good growth" />
+
+        <!-- Date -->
+        <TextView
+            android:id="@+id/analysis_date_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textColor="@color/text_secondary"
+            tools:text="Feb 5, 2026" />
+
+    </LinearLayout>
+
+    <!-- Health Trend Arrow -->
+    <ImageView
+        android:id="@+id/health_trend_arrow"
+        android:layout_width="16dp"
+        android:layout_height="16dp"
+        android:layout_marginStart="8dp"
+        android:visibility="gone"
+        android:contentDescription="Health trend"
+        tools:visibility="visible" />
+
+</LinearLayout>

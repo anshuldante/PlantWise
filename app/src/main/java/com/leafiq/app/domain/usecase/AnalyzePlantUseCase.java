@@ -1,16 +1,20 @@
 package com.leafiq.app.domain.usecase;
 
+import android.content.Context;
 import android.net.Uri;
 
 import com.leafiq.app.ai.AIProvider;
 import com.leafiq.app.ai.AIProviderException;
+import com.leafiq.app.ai.NetworkUtils;
 import com.leafiq.app.data.entity.Analysis;
 import com.leafiq.app.data.entity.Plant;
 import com.leafiq.app.data.model.PlantAnalysisResult;
 import com.leafiq.app.data.repository.PlantRepository;
 import com.leafiq.app.domain.service.AIAnalysisService;
 import com.leafiq.app.domain.service.ImagePreprocessor;
+import com.leafiq.app.util.FileCleanupUtils;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -30,6 +34,7 @@ import java.util.concurrent.Executor;
  */
 public class AnalyzePlantUseCase {
 
+    private final Context context;
     private final ImagePreprocessor imagePreprocessor;
     private final AIAnalysisService aiAnalysisService;
     private final PlantRepository plantRepository;
@@ -64,15 +69,18 @@ public class AnalyzePlantUseCase {
     /**
      * Creates an AnalyzePlantUseCase with all required dependencies.
      *
+     * @param context Application context for network connectivity checks
      * @param imagePreprocessor Service for image preparation
      * @param aiAnalysisService Service for AI API calls
      * @param plantRepository Repository for plant data access
      * @param networkExecutor Executor for background network operations
      */
-    public AnalyzePlantUseCase(ImagePreprocessor imagePreprocessor,
+    public AnalyzePlantUseCase(Context context,
+                              ImagePreprocessor imagePreprocessor,
                               AIAnalysisService aiAnalysisService,
                               PlantRepository plantRepository,
                               Executor networkExecutor) {
+        this.context = context;
         this.imagePreprocessor = imagePreprocessor;
         this.aiAnalysisService = aiAnalysisService;
         this.plantRepository = plantRepository;
@@ -90,6 +98,12 @@ public class AnalyzePlantUseCase {
      */
     public void execute(Uri imageUri, String plantId, AIProvider provider, Callback callback) {
         networkExecutor.execute(() -> {
+            // Pre-check network connectivity before starting analysis
+            if (!NetworkUtils.isNetworkAvailable(context)) {
+                callback.onError("No internet connection. Please check your network.");
+                return;
+            }
+
             try {
                 // 1. Check vision support (fail early)
                 if (!aiAnalysisService.supportsVision(provider)) {
@@ -128,10 +142,14 @@ public class AnalyzePlantUseCase {
                 // 5. Success - deliver result
                 callback.onSuccess(result);
 
-            } catch (IOException e) {
-                callback.onError("Failed to process image: " + e.getMessage());
             } catch (AIProviderException e) {
-                callback.onError("Analysis failed: " + e.getMessage());
+                // Clean up any temp files created during this analysis attempt
+                cleanupTempFiles();
+                callback.onError(NetworkUtils.classifyException(e, e.getHttpStatusCode()));
+            } catch (IOException e) {
+                // Clean up any temp files created during this analysis attempt
+                cleanupTempFiles();
+                callback.onError(NetworkUtils.classifyException(e, 0));
             }
         });
     }
@@ -155,6 +173,12 @@ public class AnalyzePlantUseCase {
             AIProvider provider,
             Callback callback) {
         networkExecutor.execute(() -> {
+            // Pre-check network connectivity before starting analysis
+            if (!NetworkUtils.isNetworkAvailable(context)) {
+                callback.onError("No internet connection. Please check your network.");
+                return;
+            }
+
             try {
                 // 1. Check vision support (fail early)
                 if (!aiAnalysisService.supportsVision(provider)) {
@@ -184,11 +208,39 @@ public class AnalyzePlantUseCase {
                 // 5. Success - deliver result
                 callback.onSuccess(result);
 
-            } catch (IOException e) {
-                callback.onError("Failed to process image: " + e.getMessage());
             } catch (AIProviderException e) {
-                callback.onError("Re-analysis failed: " + e.getMessage());
+                // Clean up any temp files created during this analysis attempt
+                cleanupTempFiles();
+                callback.onError(NetworkUtils.classifyException(e, e.getHttpStatusCode()));
+            } catch (IOException e) {
+                // Clean up any temp files created during this analysis attempt
+                cleanupTempFiles();
+                callback.onError(NetworkUtils.classifyException(e, 0));
             }
         });
+    }
+
+    /**
+     * Cleans up any temporary files created during analysis.
+     * Called immediately on error per user decision for immediate cleanup.
+     * Uses cache directory since temp image processing files go there.
+     * Best-effort cleanup - won't mask the original error.
+     */
+    private void cleanupTempFiles() {
+        try {
+            File cacheDir = imagePreprocessor.getCacheDir();
+            if (cacheDir != null && cacheDir.exists()) {
+                File[] tempFiles = cacheDir.listFiles((dir, name) ->
+                    name.startsWith("image_") || name.endsWith(".tmp"));
+                if (tempFiles != null) {
+                    for (File file : tempFiles) {
+                        FileCleanupUtils.deleteFileQuietly(file);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // Cleanup is best-effort — don't let it mask the original error
+            android.util.Log.w("AnalyzePlantUseCase", "Temp file cleanup failed: " + e.getMessage());
+        }
     }
 }

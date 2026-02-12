@@ -9,10 +9,12 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 
 import okhttp3.OkHttpClient;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
+import okhttp3.mockwebserver.SocketPolicy;
 
 public class ClaudeProviderTest {
 
@@ -39,37 +41,37 @@ public class ClaudeProviderTest {
 
     @Test
     public void isConfigured_withApiKey_returnsTrue() {
-        ClaudeProvider provider = new ClaudeProvider("sk-test-key-123");
+        ClaudeProvider provider = new ClaudeProvider("sk-test-key-123", new OkHttpClient());
         assertThat(provider.isConfigured()).isTrue();
     }
 
     @Test
     public void isConfigured_withNullApiKey_returnsFalse() {
-        ClaudeProvider provider = new ClaudeProvider(null);
+        ClaudeProvider provider = new ClaudeProvider(null, new OkHttpClient());
         assertThat(provider.isConfigured()).isFalse();
     }
 
     @Test
     public void isConfigured_withEmptyApiKey_returnsFalse() {
-        ClaudeProvider provider = new ClaudeProvider("");
+        ClaudeProvider provider = new ClaudeProvider("", new OkHttpClient());
         assertThat(provider.isConfigured()).isFalse();
     }
 
     @Test
     public void isConfigured_withWhitespaceApiKey_returnsFalse() {
-        ClaudeProvider provider = new ClaudeProvider("   ");
+        ClaudeProvider provider = new ClaudeProvider("   ", new OkHttpClient());
         assertThat(provider.isConfigured()).isFalse();
     }
 
     @Test
     public void getDisplayName_returnsClaude() {
-        ClaudeProvider provider = new ClaudeProvider("sk-test");
+        ClaudeProvider provider = new ClaudeProvider("sk-test", new OkHttpClient());
         assertThat(provider.getDisplayName()).isEqualTo("Claude (Anthropic)");
     }
 
     @Test
     public void supportsVision_returnsTrue() {
-        ClaudeProvider provider = new ClaudeProvider("sk-test");
+        ClaudeProvider provider = new ClaudeProvider("sk-test", new OkHttpClient());
         assertThat(provider.supportsVision()).isTrue();
     }
 
@@ -179,5 +181,70 @@ public class ClaudeProviderTest {
 
             assertThat(cleaned).isEqualTo("{\"test\":1}");
         }
+    }
+
+    // ==================== Network error tests (09-05) ====================
+
+    @Test
+    public void analyzePhoto_timeout_throwsException() throws Exception {
+        // Use a client with very short timeout for fast test execution
+        OkHttpClient shortTimeoutClient = new OkHttpClient.Builder()
+            .readTimeout(1, TimeUnit.SECONDS)
+            .callTimeout(2, TimeUnit.SECONDS)
+            .build();
+
+        mockWebServer.enqueue(new MockResponse()
+            .setSocketPolicy(SocketPolicy.NO_RESPONSE));
+
+        ClaudeProvider provider = new ClaudeProvider("sk-test",
+            mockWebServer.url("/").toString(), shortTimeoutClient);
+
+        AIProviderException exception = null;
+        try {
+            provider.analyzePhoto("base64data", "analyze");
+        } catch (AIProviderException e) {
+            exception = e;
+        }
+        assertThat(exception).isNotNull();
+    }
+
+    @Test
+    public void analyzePhoto_401_throwsExceptionWithStatusCode() throws Exception {
+        mockWebServer.enqueue(new MockResponse()
+            .setResponseCode(401)
+            .setBody("{\"error\":{\"message\":\"Invalid API key\"}}"));
+
+        ClaudeProvider provider = new ClaudeProvider("bad-key",
+            mockWebServer.url("/").toString(), client);
+
+        AIProviderException exception = null;
+        try {
+            provider.analyzePhoto("base64data", "analyze");
+        } catch (AIProviderException e) {
+            exception = e;
+        }
+
+        assertThat(exception).isNotNull();
+        assertThat(exception.getHttpStatusCode()).isEqualTo(401);
+    }
+
+    @Test
+    public void analyzePhoto_500_throwsExceptionWithStatusCode() throws Exception {
+        mockWebServer.enqueue(new MockResponse()
+            .setResponseCode(500)
+            .setBody("Internal Server Error"));
+
+        ClaudeProvider provider = new ClaudeProvider("sk-test",
+            mockWebServer.url("/").toString(), client);
+
+        AIProviderException exception = null;
+        try {
+            provider.analyzePhoto("base64data", "analyze");
+        } catch (AIProviderException e) {
+            exception = e;
+        }
+
+        assertThat(exception).isNotNull();
+        assertThat(exception.getHttpStatusCode()).isEqualTo(500);
     }
 }

@@ -19,6 +19,9 @@ public interface AnalysisDao {
     @Query("SELECT * FROM analyses WHERE plant_id = :plantId ORDER BY created_at DESC LIMIT 5")
     List<Analysis> getRecentAnalysesSync(String plantId);
 
+    @Query("SELECT * FROM analyses WHERE plant_id = :plantId ORDER BY created_at DESC LIMIT 1")
+    Analysis getLatestForPlantSync(String plantId);
+
     @Query("SELECT * FROM analyses WHERE id = :id")
     Analysis getAnalysisById(String id);
 
@@ -56,4 +59,13 @@ public interface AnalysisDao {
             "WHERE analyses.plant_id = :plantId " +
             "ORDER BY analyses.created_at DESC")
     LiveData<List<AnalysisWithPlant>> getAnalysesWithPlantForPlant(String plantId);
+
+    @Query("SELECT * FROM analyses WHERE parse_status = 'OK' ORDER BY created_at DESC LIMIT :limit")
+    List<Analysis> getAnalysesNeedingScan(int limit);
+
+    @Query("UPDATE analyses SET parse_status = :status WHERE id = :id")
+    void updateParseStatus(String id, String status);
+
+    @Query("SELECT COUNT(*) FROM analyses WHERE plant_id = :plantId")
+    LiveData<Integer> getAnalysisCountForPlant(String plantId);
 }

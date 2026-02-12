@@ -20,6 +20,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.leafiq.app.R;
 import com.leafiq.app.data.entity.Plant;
 import com.leafiq.app.ui.detail.PlantDetailActivity;
+import com.leafiq.app.util.WindowInsetsHelper;
 
 public class LibraryFragment extends Fragment implements PlantCardAdapter.OnPlantClickListener {
 
@@ -60,6 +61,10 @@ public class LibraryFragment extends Fragment implements PlantCardAdapter.OnPlan
         adapter = new PlantCardAdapter(this);
         recyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
         recyclerView.setAdapter(adapter);
+
+        // Apply bottom insets for edge-to-edge
+        int existingPadding = (int) (8 * getResources().getDisplayMetrics().density); // 8dp from XML
+        WindowInsetsHelper.applyBottomInsetsWithPadding(recyclerView, existingPadding);
 
         // Add swipe-to-delete
         ItemTouchHelper.SimpleCallback swipeCallback = new ItemTouchHelper.SimpleCallback(

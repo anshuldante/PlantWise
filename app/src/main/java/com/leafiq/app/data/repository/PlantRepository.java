@@ -13,6 +13,7 @@ import com.leafiq.app.data.entity.CareItem;
 import com.leafiq.app.data.entity.CareSchedule;
 import com.leafiq.app.data.entity.Plant;
 import com.leafiq.app.data.model.AnalysisWithPlant;
+import com.leafiq.app.data.model.CareCompletionWithPlantInfo;
 
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -160,6 +161,37 @@ public class PlantRepository {
         return careCompletionDao.getRecentCompletionsForPlant(plantId, limit);
     }
 
+    /**
+     * Gets the count of analyses for a plant.
+     * LiveData updates automatically when analyses change.
+     *
+     * @param plantId Plant ID to count analyses for
+     */
+    public LiveData<Integer> getAnalysisCountForPlant(String plantId) {
+        return analysisDao.getAnalysisCountForPlant(plantId);
+    }
+
+    /**
+     * Gets the count of care completions for a plant.
+     * LiveData updates automatically when completions change.
+     *
+     * @param plantId Plant ID to count completions for
+     */
+    public LiveData<Integer> getCareCompletionCountForPlant(String plantId) {
+        return careCompletionDao.getCareCompletionCountForPlant(plantId);
+    }
+
+    /**
+     * Gets a limited number of care completions for a plant.
+     * LiveData updates automatically when completions change.
+     *
+     * @param plantId Plant ID to get completions for
+     * @param limit Maximum number of completions to return
+     */
+    public LiveData<List<CareCompletion>> getLimitedCompletionsForPlant(String plantId, int limit) {
+        return careCompletionDao.getLimitedCompletionsForPlant(plantId, limit);
+    }
+
     // ==================== Synchronous Read Methods ====================
     // For use on background threads only (e.g., within UseCase executors)
 
@@ -177,6 +209,14 @@ public class PlantRepository {
      */
     public List<Analysis> getRecentAnalysesSync(String plantId) {
         return analysisDao.getRecentAnalysesSync(plantId);
+    }
+
+    /**
+     * Synchronously gets the latest analysis for a plant.
+     * MUST be called from background thread.
+     */
+    public Analysis getLatestAnalysisSync(String plantId) {
+        return analysisDao.getLatestForPlantSync(plantId);
     }
 
     /**
@@ -227,6 +267,19 @@ public class PlantRepository {
      */
     public CareCompletion getLastCompletionForScheduleSync(String scheduleId) {
         return careCompletionDao.getLastCompletionForSchedule(scheduleId);
+    }
+
+    /**
+     * Synchronously gets recent completions with plant information.
+     * MUST be called from background thread.
+     *
+     * @param afterTimestamp Returns completions where completedAt >= afterTimestamp
+     * @param limit Maximum number of completions to return
+     */
+    public List<CareCompletionWithPlantInfo> getRecentCompletionsSync(long afterTimestamp, int limit) {
+        List<CareCompletionWithPlantInfo> completions = careCompletionDao.getRecentCompletions(afterTimestamp, limit);
+        android.util.Log.i("CareSystem", "Loaded " + completions.size() + " recent completions");
+        return completions;
     }
 
     // ==================== Write Methods ====================
@@ -337,12 +390,15 @@ public class PlantRepository {
      * @param scientificName New scientific name from AI analysis
      * @param healthScore New health score from AI analysis
      * @param thumbnailPath New thumbnail path (if null, existing thumbnail is preserved)
+     * @param mediumThumbnailPath New medium thumbnail path (if null, existing is preserved)
+     * @param highResThumbnailPath New high-res thumbnail path (if null, existing is preserved)
      * @param analysis New Analysis to insert
      * @param careItems New CareItems to insert
      * @param callback Callback for success/error
      */
     public void addAnalysisToExistingPlant(String plantId, String commonName, String scientificName,
                                           int healthScore, String thumbnailPath,
+                                          String mediumThumbnailPath, String highResThumbnailPath,
                                           Analysis analysis, List<CareItem> careItems,
                                           RepositoryCallback<Void> callback) {
         ioExecutor.execute(() -> {
@@ -360,9 +416,15 @@ public class PlantRepository {
                 existingPlant.latestHealthScore = healthScore;
                 existingPlant.updatedAt = System.currentTimeMillis();
 
-                // Update thumbnail only if new one provided
+                // Update thumbnails only if new ones provided
                 if (thumbnailPath != null) {
                     existingPlant.thumbnailPath = thumbnailPath;
+                }
+                if (mediumThumbnailPath != null) {
+                    existingPlant.mediumThumbnailPath = mediumThumbnailPath;
+                }
+                if (highResThumbnailPath != null) {
+                    existingPlant.highResThumbnailPath = highResThumbnailPath;
                 }
 
                 // PRESERVE user-set fields:
@@ -650,6 +712,34 @@ public class PlantRepository {
         ioExecutor.execute(() -> {
             try {
                 careScheduleDao.deleteSchedulesForPlant(plantId);
+                callback.onSuccess(null);
+            } catch (Exception e) {
+                callback.onError(e);
+            }
+        });
+    }
+
+    /**
+     * Gets all care completions for a plant (unlimited, for full-screen history).
+     * LiveData updates automatically when completions change.
+     *
+     * @param plantId Plant ID to get completions for
+     */
+    public LiveData<List<CareCompletion>> getAllCompletionsForPlant(String plantId) {
+        return careCompletionDao.getAllCompletionsForPlant(plantId);
+    }
+
+    /**
+     * Deletes a care completion from the database.
+     * Executes on background thread, result delivered via callback.
+     *
+     * @param completionId Care completion ID to delete
+     * @param callback Callback for success/error
+     */
+    public void deleteCareCompletion(String completionId, RepositoryCallback<Void> callback) {
+        ioExecutor.execute(() -> {
+            try {
+                careCompletionDao.deleteCareCompletionById(completionId);
                 callback.onSuccess(null);
             } catch (Exception e) {
                 callback.onError(e);

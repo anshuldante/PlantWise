@@ -160,4 +160,41 @@ public class JsonParserTest {
         String json = "not valid json";
         JsonParser.parsePlantAnalysis(json);
     }
+
+    // ==================== Boolean edge case tests (09-05 - BUG-18) ====================
+
+    @Test
+    public void parsePlantAnalysis_pruningNeeded_booleanTrue() throws Exception {
+        String json = "{\"carePlan\":{\"pruning\":{\"needed\":true,\"instructions\":\"trim\",\"when\":\"spring\"}}}";
+        PlantAnalysisResult result = JsonParser.parsePlantAnalysis(json);
+        assertThat(result.carePlan.pruning.needed).isTrue();
+    }
+
+    @Test
+    public void parsePlantAnalysis_pruningNeeded_stringTrue() throws Exception {
+        String json = "{\"carePlan\":{\"pruning\":{\"needed\":\"true\",\"instructions\":\"trim\",\"when\":\"spring\"}}}";
+        PlantAnalysisResult result = JsonParser.parsePlantAnalysis(json);
+        assertThat(result.carePlan.pruning.needed).isTrue();
+    }
+
+    @Test
+    public void parsePlantAnalysis_pruningNeeded_stringFalse() throws Exception {
+        String json = "{\"carePlan\":{\"pruning\":{\"needed\":\"false\",\"instructions\":\"\",\"when\":\"\"}}}";
+        PlantAnalysisResult result = JsonParser.parsePlantAnalysis(json);
+        assertThat(result.carePlan.pruning.needed).isFalse();
+    }
+
+    @Test
+    public void parsePlantAnalysis_repottingNeeded_stringTrue() throws Exception {
+        String json = "{\"carePlan\":{\"repotting\":{\"needed\":\"true\",\"signs\":\"roots visible\"}}}";
+        PlantAnalysisResult result = JsonParser.parsePlantAnalysis(json);
+        assertThat(result.carePlan.repotting.needed).isTrue();
+    }
+
+    @Test
+    public void parsePlantAnalysis_pruningNeeded_missing_defaultsFalse() throws Exception {
+        String json = "{\"carePlan\":{\"pruning\":{\"instructions\":\"none\"}}}";
+        PlantAnalysisResult result = JsonParser.parsePlantAnalysis(json);
+        assertThat(result.carePlan.pruning.needed).isFalse();
+    }
 }

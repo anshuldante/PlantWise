@@ -34,7 +34,14 @@ public class Analysis {
     @ColumnInfo(name = "created_at")
     public long createdAt;
 
+    @ColumnInfo(name = "parse_status")
+    public String parseStatus;
+
+    @ColumnInfo(name = "re_analyzed_at")
+    public Long reAnalyzedAt;
+
     public Analysis() {
         this.id = "";
+        this.parseStatus = "OK";
     }
 }

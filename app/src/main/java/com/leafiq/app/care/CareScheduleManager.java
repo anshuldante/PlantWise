@@ -185,11 +185,30 @@ public class CareScheduleManager {
 
         // Schedule exact alarm
         if (alarmManager != null) {
-            alarmManager.setExactAndAllowWhileIdle(
-                    AlarmManager.RTC_WAKEUP,
-                    alarmTimeMillis,
-                    pendingIntent
-            );
+            // Check if we can schedule exact alarms (API 31+)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                if (alarmManager.canScheduleExactAlarms()) {
+                    alarmManager.setExactAndAllowWhileIdle(
+                            AlarmManager.RTC_WAKEUP,
+                            alarmTimeMillis,
+                            pendingIntent
+                    );
+                } else {
+                    // Fall back to inexact alarm if permission not granted
+                    alarmManager.setAndAllowWhileIdle(
+                            AlarmManager.RTC_WAKEUP,
+                            alarmTimeMillis,
+                            pendingIntent
+                    );
+                }
+            } else {
+                // Pre-Android 12, no permission check needed
+                alarmManager.setExactAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP,
+                        alarmTimeMillis,
+                        pendingIntent
+                );
+            }
         }
     }
 
@@ -293,6 +312,48 @@ public class CareScheduleManager {
             });
 
             // Reschedule alarm
+            scheduleNextAlarm();
+        }
+    }
+
+    /**
+     * Recalculates the nextDue date for a schedule based on its last completion.
+     * Called after deleting a care completion to update the schedule timing.
+     *
+     * @param scheduleId Schedule ID to recalculate
+     */
+    public void recalculateNextDue(String scheduleId) {
+        CareSchedule schedule = repository.getScheduleByIdSync(scheduleId);
+        if (schedule == null) {
+            return;
+        }
+
+        // Find the last remaining completion for this schedule
+        CareCompletion lastCompletion = repository.getLastCompletionForScheduleSync(scheduleId);
+
+        if (lastCompletion != null) {
+            // Calculate nextDue from last completion
+            schedule.nextDue = lastCompletion.completedAt + (schedule.frequencyDays * MILLIS_PER_DAY);
+        } else {
+            // No completions remaining - reset to current time + frequency
+            schedule.nextDue = System.currentTimeMillis() + (schedule.frequencyDays * MILLIS_PER_DAY);
+        }
+
+        // Update schedule in database
+        repository.updateSchedule(schedule, new PlantRepository.RepositoryCallback<Void>() {
+            @Override
+            public void onSuccess(Void result) {
+                // Updated successfully
+            }
+
+            @Override
+            public void onError(Exception e) {
+                // Log error silently
+            }
+        });
+
+        // Reschedule alarm if schedule is enabled
+        if (schedule.isEnabled) {
             scheduleNextAlarm();
         }
     }

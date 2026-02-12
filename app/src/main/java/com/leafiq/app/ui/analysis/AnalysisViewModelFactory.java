@@ -53,6 +53,7 @@ public class AnalysisViewModelFactory implements ViewModelProvider.Factory {
 
             // Create use case with all dependencies
             AnalyzePlantUseCase analyzePlantUseCase = new AnalyzePlantUseCase(
+                    application,  // Context for network check
                     imagePreprocessor,
                     aiAnalysisService,
                     plantRepository,

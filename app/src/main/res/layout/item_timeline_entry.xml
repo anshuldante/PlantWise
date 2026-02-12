@@ -95,7 +95,7 @@
                 android:layout_height="24dp"
                 android:layout_marginStart="8dp"
                 android:src="@android:drawable/arrow_down_float"
-                android:tint="@color/text_secondary"
+                app:tint="@color/text_secondary"
                 android:contentDescription="Expand entry" />
 
         </LinearLayout>
@@ -154,6 +154,17 @@
                         android:ellipsize="end"
                         android:maxLines="2"
                         android:text="Diagnosis summary text" />
+
+                    <!-- Limited details label (for degraded parse status) -->
+                    <TextView
+                        android:id="@+id/limited_details_label"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:textAppearance="@style/TextAppearance.Material3.LabelSmall"
+                        android:textColor="@color/text_secondary"
+                        android:visibility="gone"
+                        android:text="Limited details" />
 
                 </LinearLayout>
 

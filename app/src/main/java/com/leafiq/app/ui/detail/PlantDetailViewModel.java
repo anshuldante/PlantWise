@@ -83,4 +83,62 @@ public class PlantDetailViewModel extends AndroidViewModel {
             }
         }).start();
     }
+
+    /**
+     * Get the photo path from the most recent analysis for lazy thumbnail regeneration.
+     */
+    public void getLatestPhotoPath(String plantId, java.util.function.Consumer<String> callback) {
+        LeafIQApplication app = (LeafIQApplication) getApplication();
+        app.getAppExecutors().io().execute(() -> {
+            Analysis latest = repository.getLatestAnalysisSync(plantId);
+            if (latest != null && latest.photoPath != null) {
+                callback.accept(latest.photoPath);
+            } else {
+                callback.accept(null);
+            }
+        });
+    }
+
+    public LiveData<Integer> getAnalysisCount(String plantId) {
+        return repository.getAnalysisCountForPlant(plantId);
+    }
+
+    public LiveData<Integer> getCareCompletionCount(String plantId) {
+        return repository.getCareCompletionCountForPlant(plantId);
+    }
+
+    public LiveData<List<CareCompletion>> getLimitedCompletions(String plantId, int limit) {
+        return repository.getLimitedCompletionsForPlant(plantId, limit);
+    }
+
+    public void deleteAnalysis(String analysisId, PlantRepository.RepositoryCallback<Void> callback) {
+        repository.deleteAnalysis(analysisId, callback);
+    }
+
+    public LiveData<List<CareCompletion>> getAllCompletionsForPlant(String plantId) {
+        return repository.getAllCompletionsForPlant(plantId);
+    }
+
+    public void deleteCareCompletion(String completionId, String scheduleId, PlantRepository.RepositoryCallback<Void> callback) {
+        // Delete the completion
+        repository.deleteCareCompletion(completionId, new PlantRepository.RepositoryCallback<Void>() {
+            @Override
+            public void onSuccess(Void result) {
+                // After deletion, recalculate schedule's nextDue
+                new Thread(() -> {
+                    try {
+                        careScheduleManager.recalculateNextDue(scheduleId);
+                        callback.onSuccess(null);
+                    } catch (Exception e) {
+                        callback.onError(e);
+                    }
+                }).start();
+            }
+
+            @Override
+            public void onError(Exception e) {
+                callback.onError(e);
+            }
+        });
+    }
 }

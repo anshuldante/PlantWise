@@ -5,29 +5,59 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.net.Uri;
+import android.util.Log;
 
 import java.io.InputStream;
 
 /**
  * Utility class for checking photo quality before AI analysis.
- * Validates brightness, blur, and resolution to ensure good analysis results.
+ * Validates brightness and resolution to ensure good analysis results.
+ *
+ * Two-tier rejection (borderline vs egregious) with Quick Diagnosis mode.
+ * Borderline failures allow user override with clear warnings.
+ * Egregious failures (extremely dark/bright photos) do not allow override.
+ *
+ * Note: Blur detection was removed — Laplacian variance is unreliable on
+ * downsampled images and AI providers handle moderate blur gracefully.
  */
 public class PhotoQualityChecker {
 
-    // Threshold constants
-    private static final float MIN_BRIGHTNESS = 0.15f;
-    private static final float MAX_BRIGHTNESS = 0.95f;
-    private static final float MIN_BLUR_SCORE = 80f;
-    private static final int MIN_RESOLUTION = 480;
-    private static final int QUALITY_CHECK_MAX_SIZE = 800;
+    private static final String TAG = "QualityCheck";
+
+    // Brightness thresholds (borderline - override allowed)
+    static final float MIN_BRIGHTNESS = 0.15f;
+    static final float MAX_BRIGHTNESS = 0.95f;
+
+    // Quick Diagnosis mode: More lenient brightness thresholds
+    static final float QUICK_DIAGNOSIS_MIN_BRIGHTNESS = 0.12f;
+    static final float QUICK_DIAGNOSIS_MAX_BRIGHTNESS = 0.97f;
+
+    // Egregious brightness thresholds (no override allowed)
+    static final float EGREGIOUS_MIN_BRIGHTNESS = 0.05f;
+    static final float EGREGIOUS_MAX_BRIGHTNESS = 0.98f;
+
+    static final int MIN_RESOLUTION = 480;
+    static final int QUALITY_CHECK_MAX_SIZE = 800;
 
     /**
-     * Checks photo quality on multiple dimensions.
+     * Checks photo quality using standard thresholds.
      * @param contentResolver ContentResolver to access image
      * @param imageUri URI of the image to check
      * @return QualityResult with pass/fail and specific feedback
      */
     public static QualityResult checkQuality(ContentResolver contentResolver, Uri imageUri) {
+        return checkQuality(contentResolver, imageUri, false);
+    }
+
+    /**
+     * Checks photo quality on brightness and resolution.
+     * @param contentResolver ContentResolver to access image
+     * @param imageUri URI of the image to check
+     * @param isQuickDiagnosis If true, uses more lenient thresholds
+     * @return QualityResult with pass/fail, specific feedback, and override eligibility
+     */
+    public static QualityResult checkQuality(ContentResolver contentResolver, Uri imageUri,
+                                            boolean isQuickDiagnosis) {
         try {
             // Step 1: Check resolution using bounds-only decode
             BitmapFactory.Options boundsOptions = new BitmapFactory.Options();
@@ -35,7 +65,7 @@ public class PhotoQualityChecker {
 
             try (InputStream boundsStream = contentResolver.openInputStream(imageUri)) {
                 if (boundsStream == null) {
-                    return QualityResult.fail("Could not open image", "access");
+                    return QualityResult.fail("Could not open image", "access", false, "egregious", 0f);
                 }
                 BitmapFactory.decodeStream(boundsStream, null, boundsOptions);
             }
@@ -47,7 +77,10 @@ public class PhotoQualityChecker {
                 return QualityResult.fail(
                     "Image resolution is too low (" + width + "x" + height +
                     "). Use a higher quality photo.",
-                    "resolution"
+                    "resolution",
+                    false,
+                    "egregious",
+                    0f
                 );
             }
 
@@ -62,49 +95,78 @@ public class PhotoQualityChecker {
             Bitmap bitmap;
             try (InputStream imageStream = contentResolver.openInputStream(imageUri)) {
                 if (imageStream == null) {
-                    return QualityResult.fail("Could not open image", "access");
+                    return QualityResult.fail("Could not open image", "access", false, "egregious", 0f);
                 }
                 bitmap = BitmapFactory.decodeStream(imageStream, null, decodeOptions);
                 if (bitmap == null) {
-                    return QualityResult.fail("Could not decode image", "decode");
+                    return QualityResult.fail("Could not decode image", "decode", false, "egregious", 0f);
                 }
             }
 
             try {
                 // Step 4: Check brightness
                 float brightness = calculateBrightness(bitmap);
-                if (brightness < MIN_BRIGHTNESS) {
-                    return QualityResult.fail(
-                        "Photo is too dark. Try taking it in better light.",
-                        "dark"
-                    );
-                }
-                if (brightness > MAX_BRIGHTNESS) {
-                    return QualityResult.fail(
-                        "Photo is overexposed. Reduce lighting or avoid direct light.",
-                        "bright"
+
+                // Select thresholds based on mode
+                float minBrightness = isQuickDiagnosis ? QUICK_DIAGNOSIS_MIN_BRIGHTNESS : MIN_BRIGHTNESS;
+                float maxBrightness = isQuickDiagnosis ? QUICK_DIAGNOSIS_MAX_BRIGHTNESS : MAX_BRIGHTNESS;
+
+                // Check for egregious brightness issues first
+                if (brightness < EGREGIOUS_MIN_BRIGHTNESS) {
+                    Log.i(TAG, String.format("Quality check: brightness=%.2f resolution=%dx%d passed=false override=false (egregious dark)",
+                            brightness, width, height));
+                    return QualityResult.egregiousFail(
+                        "Photo is extremely dark and unusable. Take photo in better light.",
+                        "dark",
+                        brightness
                     );
                 }
 
-                // Step 5: Check blur
-                float blurScore = calculateBlurScore(bitmap);
-                if (blurScore < MIN_BLUR_SCORE) {
-                    return QualityResult.fail(
-                        "Photo appears blurry. Hold the camera steady and focus on the plant.",
-                        "blur"
+                if (brightness > EGREGIOUS_MAX_BRIGHTNESS) {
+                    Log.i(TAG, String.format("Quality check: brightness=%.2f resolution=%dx%d passed=false override=false (egregious bright)",
+                            brightness, width, height));
+                    return QualityResult.egregiousFail(
+                        "Photo is completely washed out. Reduce lighting or avoid direct light.",
+                        "bright",
+                        brightness
                     );
+                }
+
+                // Check borderline brightness thresholds
+                boolean brightnessPass = brightness >= minBrightness && brightness <= maxBrightness;
+
+                if (!brightnessPass) {
+                    String message;
+                    String issueType;
+
+                    if (brightness < minBrightness) {
+                        message = "Photo is too dark. Try taking it in better light.";
+                        issueType = "dark";
+                    } else {
+                        message = "Photo is overexposed. Reduce lighting or avoid direct light.";
+                        issueType = "bright";
+                    }
+
+                    Log.i(TAG, String.format("Quality check: brightness=%.2f resolution=%dx%d passed=false override=true issue=%s",
+                            brightness, width, height, issueType));
+
+                    return QualityResult.fail(message, issueType, true, "borderline", brightness);
                 }
 
                 // All checks passed
-                return QualityResult.ok();
+                Log.i(TAG, String.format("Quality check: brightness=%.2f resolution=%dx%d passed=true",
+                        brightness, width, height));
+
+                return QualityResult.ok(brightness);
 
             } finally {
                 bitmap.recycle();
             }
 
         } catch (Exception e) {
-            // If quality check itself fails, return a generic error
-            return QualityResult.fail("Quality check failed: " + e.getMessage(), "error");
+            Log.e(TAG, "Quality check exception", e);
+            return QualityResult.fail("Quality check failed: " + e.getMessage(), "error",
+                    false, "egregious", 0f);
         }
     }
 
@@ -119,11 +181,9 @@ public class PhotoQualityChecker {
         long sum = 0;
         int count = 0;
 
-        // Sample every 10th pixel
         for (int y = 0; y < height; y += 10) {
             for (int x = 0; x < width; x += 10) {
                 int pixel = bitmap.getPixel(x, y);
-                // Calculate luminance: 0.299*R + 0.587*G + 0.114*B
                 float luminance = 0.299f * Color.red(pixel) +
                                  0.587f * Color.green(pixel) +
                                  0.114f * Color.blue(pixel);
@@ -136,60 +196,7 @@ public class PhotoQualityChecker {
     }
 
     /**
-     * Calculates blur score using Laplacian variance approximation.
-     * Higher score = sharper image. Lower score = more blur.
-     * Samples every 5th pixel for speed.
-     * @return blur score (higher is sharper)
-     */
-    private static float calculateBlurScore(Bitmap bitmap) {
-        int width = bitmap.getWidth();
-        int height = bitmap.getHeight();
-        long sumOfSquares = 0;
-        int count = 0;
-
-        // Sample every 5th pixel, avoiding edges
-        for (int y = 5; y < height - 5; y += 5) {
-            for (int x = 5; x < width - 5; x += 5) {
-                int center = bitmap.getPixel(x, y);
-                int left = bitmap.getPixel(x - 1, y);
-                int right = bitmap.getPixel(x + 1, y);
-                int top = bitmap.getPixel(x, y - 1);
-                int bottom = bitmap.getPixel(x, y + 1);
-
-                int centerGray = getGrayscale(center);
-                int leftGray = getGrayscale(left);
-                int rightGray = getGrayscale(right);
-                int topGray = getGrayscale(top);
-                int bottomGray = getGrayscale(bottom);
-
-                // Laplacian: 4*center - (left + right + top + bottom)
-                int laplacian = 4 * centerGray - (leftGray + rightGray + topGray + bottomGray);
-                sumOfSquares += laplacian * laplacian;
-                count++;
-            }
-        }
-
-        if (count == 0) return 0;
-
-        // Return square root of variance as blur score
-        double variance = sumOfSquares / (double) count;
-        return (float) Math.sqrt(variance);
-    }
-
-    /**
-     * Converts a pixel to grayscale value.
-     * @param pixel ARGB pixel value
-     * @return grayscale value (0-255)
-     */
-    private static int getGrayscale(int pixel) {
-        return (int) (0.299 * Color.red(pixel) +
-                     0.587 * Color.green(pixel) +
-                     0.114 * Color.blue(pixel));
-    }
-
-    /**
      * Calculates appropriate sample size for downsampling.
-     * Standard Android pattern for memory-efficient image loading.
      * @return power-of-2 sample size
      */
     private static int calculateInSampleSize(BitmapFactory.Options options,
@@ -202,8 +209,6 @@ public class PhotoQualityChecker {
             final int halfHeight = height / 2;
             final int halfWidth = width / 2;
 
-            // Calculate the largest inSampleSize value that is a power of 2 and keeps both
-            // height and width larger than the requested height and width.
             while ((halfHeight / inSampleSize) >= reqHeight
                     && (halfWidth / inSampleSize) >= reqWidth) {
                 inSampleSize *= 2;
@@ -220,27 +225,44 @@ public class PhotoQualityChecker {
         public final boolean passed;
         public final String message;
         public final String issueType;
+        public final boolean overrideAllowed;
+        public final String issueSeverity;
+        public final float brightnessScore;
 
-        private QualityResult(boolean passed, String message, String issueType) {
+        private QualityResult(boolean passed, String message, String issueType,
+                            boolean overrideAllowed, String issueSeverity,
+                            float brightnessScore) {
             this.passed = passed;
             this.message = message;
             this.issueType = issueType;
+            this.overrideAllowed = overrideAllowed;
+            this.issueSeverity = issueSeverity;
+            this.brightnessScore = brightnessScore;
         }
 
-        /**
-         * Creates a passing quality result.
-         */
         public static QualityResult ok() {
-            return new QualityResult(true, null, null);
+            return new QualityResult(true, null, null, false, null, 0f);
         }
 
-        /**
-         * Creates a failing quality result with specific feedback.
-         * @param message User-facing error message
-         * @param issueType Type of issue: "dark", "bright", "blur", "resolution"
-         */
+        public static QualityResult ok(float brightnessScore) {
+            return new QualityResult(true, null, null, false, null, brightnessScore);
+        }
+
         public static QualityResult fail(String message, String issueType) {
-            return new QualityResult(false, message, issueType);
+            return new QualityResult(false, message, issueType, true, "borderline", 0f);
+        }
+
+        public static QualityResult fail(String message, String issueType,
+                                        boolean overrideAllowed, String issueSeverity,
+                                        float brightnessScore) {
+            return new QualityResult(false, message, issueType, overrideAllowed, issueSeverity,
+                    brightnessScore);
+        }
+
+        public static QualityResult egregiousFail(String message, String issueType,
+                                                 float brightnessScore) {
+            return new QualityResult(false, message, issueType, false, "egregious",
+                    brightnessScore);
         }
     }
 }

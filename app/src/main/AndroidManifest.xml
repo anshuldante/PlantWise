@@ -6,6 +6,7 @@
 
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <!-- Media access for gallery picker on Android 13+ -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
@@ -72,12 +73,31 @@
             android:exported="false"
             android:theme="@style/Theme.LeafIQ" />
 
+        <activity
+            android:name=".ui.detail.ImageViewerActivity"
+            android:theme="@style/Theme.AppCompat.NoActionBar"
+            android:exported="false" />
+
+        <activity
+            android:name=".ui.detail.AnalysisHistoryActivity"
+            android:parentActivityName=".ui.detail.PlantDetailActivity"
+            android:exported="false"
+            android:theme="@style/Theme.LeafIQ" />
+
+        <activity
+            android:name=".ui.detail.CareHistoryActivity"
+            android:parentActivityName=".ui.detail.PlantDetailActivity"
+            android:exported="false"
+            android:theme="@style/Theme.LeafIQ" />
+
         <!-- BroadcastReceiver for care reminder alarms and notification actions -->
         <receiver android:name=".care.CareReminderReceiver"
             android:exported="false">
             <intent-filter>
                 <action android:name="com.leafiq.app.ACTION_CARE_DONE"/>
                 <action android:name="com.leafiq.app.ACTION_CARE_SNOOZE"/>
+                <action android:name="com.leafiq.app.ACTION_NOTIFICATION_DISMISSED"/>
+                <action android:name="com.leafiq.app.ACTION_MARK_ALL_DONE"/>
             </intent-filter>
         </receiver>
 

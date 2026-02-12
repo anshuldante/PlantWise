@@ -6,13 +6,13 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
-import android.os.Build;
+import android.service.notification.StatusBarNotification;
+import android.util.Log;
 
 import androidx.core.app.NotificationCompat;
 
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.resource.bitmap.CircleCrop;
-import com.leafiq.app.MainActivity;
 import com.leafiq.app.R;
 import com.leafiq.app.data.entity.CareSchedule;
 import com.leafiq.app.ui.care.CareOverviewActivity;
@@ -55,19 +55,17 @@ public class NotificationHelper {
      * @param context Application context
      */
     public static void createNotificationChannel(Context context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(
-                    CHANNEL_ID,
-                    CHANNEL_NAME,
-                    NotificationManager.IMPORTANCE_DEFAULT
-            );
-            channel.setDescription(CHANNEL_DESC);
+      NotificationChannel channel = new NotificationChannel(
+          CHANNEL_ID,
+          CHANNEL_NAME,
+          NotificationManager.IMPORTANCE_DEFAULT
+      );
+      channel.setDescription(CHANNEL_DESC);
 
-            NotificationManager notificationManager = context.getSystemService(NotificationManager.class);
-            if (notificationManager != null) {
-                notificationManager.createNotificationChannel(channel);
-            }
-        }
+      NotificationManager notificationManager = context.getSystemService(NotificationManager.class);
+      if (notificationManager != null) {
+          notificationManager.createNotificationChannel(channel);
+      }
     }
 
     /**
@@ -121,6 +119,7 @@ public class NotificationHelper {
                     .setContentTitle(careEmoji + " " + displayName)
                     .setContentText(context.getString(R.string.time_to_care, careVerb.toLowerCase()))
                     .setGroup(GROUP_KEY)
+                    .setDeleteIntent(createDeleteIntent(context, schedule.id))
                     .addAction(R.drawable.ic_check, "Done", createDonePendingIntent(context, schedule.id))
                     .addAction(R.drawable.ic_snooze, "Snooze", createSnoozePendingIntent(context, schedule.id))
                     .setAutoCancel(false)
@@ -159,9 +158,12 @@ public class NotificationHelper {
                 .setGroup(GROUP_KEY)
                 .setGroupSummary(true)
                 .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_SUMMARY)
+                .addAction(R.drawable.ic_check, "Mark All Done", createMarkAllDoneIntent(context, dueSchedules))
                 .setContentIntent(createCareOverviewPendingIntent(context));
 
         notificationManager.notify(SUMMARY_NOTIFICATION_ID, summaryBuilder.build());
+
+        Log.i("CareSystem", "Built " + itemCount + " care notifications with summary");
     }
 
     /**
@@ -172,17 +174,125 @@ public class NotificationHelper {
      * @param scheduleId Schedule ID to dismiss
      */
     public static void dismissNotification(Context context, String scheduleId) {
-        NotificationManager notificationManager =
-                (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-        if (notificationManager == null) {
+        NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (nm == null) {
             return;
         }
 
         // Cancel the child notification
-        notificationManager.cancel(scheduleId.hashCode());
+        nm.cancel(scheduleId.hashCode());
+        Log.i("CareSystem", "Dismissed notification for schedule: " + scheduleId);
 
-        // TODO: Check if any child notifications remain; if not, also cancel summary
-        // For now, we'll let the summary remain (Android may auto-dismiss when last child is dismissed)
+        // Check remaining children in same group
+        checkAndUpdateSummary(context, nm);
+    }
+
+    /**
+     * Checks remaining child notifications and updates or dismisses summary.
+     *
+     * @param context Application context
+     * @param nm NotificationManager instance
+     */
+    public static void checkAndUpdateSummary(Context context, NotificationManager nm) {
+        if (nm == null) {
+            return;
+        }
+
+        StatusBarNotification[] active = nm.getActiveNotifications();
+        int childCount = 0;
+        for (StatusBarNotification sbn : active) {
+            if (GROUP_KEY.equals(sbn.getNotification().getGroup())
+                && sbn.getId() != SUMMARY_NOTIFICATION_ID) {
+                childCount++;
+            }
+        }
+
+        if (childCount == 0) {
+            nm.cancel(SUMMARY_NOTIFICATION_ID);
+            Log.i("CareSystem", "Dismissed summary notification (no children remaining)");
+        } else {
+            updateSummaryNotificationCount(context, nm, childCount);
+            Log.i("CareSystem", "Updated summary notification: " + childCount + " children remaining");
+        }
+    }
+
+    /**
+     * Updates summary notification count in-place.
+     *
+     * @param context Application context
+     * @param nm NotificationManager instance
+     * @param count Number of remaining child notifications
+     */
+    private static void updateSummaryNotificationCount(Context context, NotificationManager nm, int count) {
+        NotificationCompat.Builder summaryBuilder = new NotificationCompat.Builder(context, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_notification)
+                .setContentTitle(context.getString(R.string.n_plants_need_care, count))
+                .setGroup(GROUP_KEY)
+                .setGroupSummary(true)
+                .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
+                .setContentIntent(createCareOverviewPendingIntent(context));
+
+        nm.notify(SUMMARY_NOTIFICATION_ID, summaryBuilder.build());
+    }
+
+    /**
+     * Dismisses all notifications in the care reminder group.
+     *
+     * @param context Application context
+     */
+    public static void dismissAllNotifications(Context context) {
+        NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (nm == null) {
+            return;
+        }
+
+        StatusBarNotification[] active = nm.getActiveNotifications();
+        for (StatusBarNotification sbn : active) {
+            if (GROUP_KEY.equals(sbn.getNotification().getGroup())) {
+                nm.cancel(sbn.getId());
+            }
+        }
+        Log.i("CareSystem", "Dismissed all care notifications");
+    }
+
+    /**
+     * Creates PendingIntent for notification delete action.
+     */
+    private static PendingIntent createDeleteIntent(Context context, String scheduleId) {
+        Intent intent = new Intent(context, CareReminderReceiver.class);
+        intent.setAction(CareReminderReceiver.ACTION_NOTIFICATION_DISMISSED);
+        intent.putExtra("schedule_id", scheduleId);
+
+        int requestCode = ("delete_" + scheduleId).hashCode();
+        return PendingIntent.getBroadcast(
+                context,
+                requestCode,
+                intent,
+                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT
+        );
+    }
+
+    /**
+     * Creates PendingIntent for "Mark All Done" action on summary.
+     */
+    private static PendingIntent createMarkAllDoneIntent(Context context, List<DueScheduleInfo> dueSchedules) {
+        Intent intent = new Intent(context, CareReminderReceiver.class);
+        intent.setAction(CareReminderReceiver.ACTION_MARK_ALL_DONE);
+
+        // Build comma-separated schedule IDs
+        StringBuilder scheduleIds = new StringBuilder();
+        for (int i = 0; i < dueSchedules.size(); i++) {
+            if (i > 0) scheduleIds.append(",");
+            scheduleIds.append(dueSchedules.get(i).schedule.id);
+        }
+        intent.putExtra("schedule_ids", scheduleIds.toString());
+
+        return PendingIntent.getBroadcast(
+                context,
+                9997, // Fixed request code for mark-all-done
+                intent,
+                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT
+        );
     }
 
     /**

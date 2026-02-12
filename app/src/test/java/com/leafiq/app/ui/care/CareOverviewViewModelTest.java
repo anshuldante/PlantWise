@@ -1,11 +1,13 @@
 package com.leafiq.app.ui.care;
 
 import static com.google.common.truth.Truth.assertThat;
+import static org.mockito.Mockito.mock;
 
 import com.leafiq.app.data.entity.CareSchedule;
 import com.leafiq.app.data.entity.Plant;
 
 import org.junit.Test;
+import org.mockito.Mockito;
 
 /**
  * Unit tests for CareOverviewViewModel POJOs and logic.
@@ -33,11 +35,13 @@ public class CareOverviewViewModelTest {
     @Test
     public void careCompletionItem_holdsAllFields() {
         CareOverviewViewModel.CareCompletionItem item = new CareOverviewViewModel.CareCompletionItem(
-                "sched-1", "water", "My Pothos", 1000000L);
+                "sched-1", "water", "Watered My Pothos", "2 days ago", "plant-1", 1000000L);
 
         assertThat(item.scheduleId).isEqualTo("sched-1");
         assertThat(item.careType).isEqualTo("water");
-        assertThat(item.plantDisplayName).isEqualTo("My Pothos");
+        assertThat(item.displayText).isEqualTo("Watered My Pothos");
+        assertThat(item.relativeTime).isEqualTo("2 days ago");
+        assertThat(item.plantId).isEqualTo("plant-1");
         assertThat(item.completedAt).isEqualTo(1000000L);
     }
 
@@ -136,6 +140,33 @@ public class CareOverviewViewModelTest {
         assertThat(isUpcoming).isFalse();
     }
 
+    // ==================== Past tense verb tests ====================
+
+    @Test
+    public void getPastTenseVerb_water_returnsWatered() throws Exception {
+        assertThat(invokeGetPastTenseVerb("water")).isEqualTo("Watered");
+    }
+
+    @Test
+    public void getPastTenseVerb_fertilize_returnsFertilized() throws Exception {
+        assertThat(invokeGetPastTenseVerb("fertilize")).isEqualTo("Fertilized");
+    }
+
+    @Test
+    public void getPastTenseVerb_repot_returnsRepotted() throws Exception {
+        assertThat(invokeGetPastTenseVerb("repot")).isEqualTo("Repotted");
+    }
+
+    @Test
+    public void getPastTenseVerb_prune_returnsPruned() throws Exception {
+        assertThat(invokeGetPastTenseVerb("prune")).isEqualTo("Pruned");
+    }
+
+    @Test
+    public void getPastTenseVerb_unknown_returnsDefault() throws Exception {
+        assertThat(invokeGetPastTenseVerb("mist")).isEqualTo("Cared for");
+    }
+
     // ==================== Helpers ====================
 
     /**
@@ -148,6 +179,28 @@ public class CareOverviewViewModelTest {
             case 2: return schedule.nextDue + (schedule.frequencyDays * 24L * 60 * 60 * 1000);
             default: return now;
         }
+    }
+
+    /**
+     * Invokes the private getPastTenseVerb method via reflection.
+     */
+    private String invokeGetPastTenseVerb(String careType) throws Exception {
+        java.lang.reflect.Method method = CareOverviewViewModel.class.getDeclaredMethod("getPastTenseVerb", String.class);
+        method.setAccessible(true);
+
+        // Create a mock ViewModel to call the method on
+        // Note: getPastTenseVerb is an instance method, but we can create a minimal mock
+        // Since the method doesn't use any instance state, we can use reflection to invoke it
+        // We need to pass null for 'this' if it's actually private static, or create a minimal instance
+
+        // After checking the implementation, getPastTenseVerb is private instance method
+        // We'll invoke it on a null-like context using Mockito stub
+        org.mockito.Mockito.mock(CareOverviewViewModel.class, org.mockito.Mockito.withSettings().stubOnly());
+
+        // Actually, let's just invoke directly with null since it doesn't use instance fields
+        // But we need an instance. Let's create a test double by invoking on a mocked instance.
+        CareOverviewViewModel mockViewModel = org.mockito.Mockito.mock(CareOverviewViewModel.class, org.mockito.Mockito.withSettings().stubOnly());
+        return (String) method.invoke(mockViewModel, careType);
     }
 
     private long getEndOfToday() {

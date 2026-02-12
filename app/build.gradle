@@ -14,6 +14,12 @@ android {
         versionName "1.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
+        javaCompileOptions {
+            annotationProcessorOptions {
+                arguments = ["room.schemaLocation": "$projectDir/schemas".toString()]
+            }
+        }
     }
 
     buildTypes {
@@ -30,7 +36,16 @@ android {
     testOptions {
         unitTests {
             includeAndroidResources = true
+            returnDefaultValues = true
         }
+    }
+
+    sourceSets {
+        androidTest.assets.srcDirs += files("$projectDir/schemas".toString())
+    }
+
+    buildFeatures {
+        viewBinding = true
     }
 }
 
@@ -67,6 +82,9 @@ dependencies {
     // Glide for image loading
     implementation libs.glide
     annotationProcessor libs.glide.compiler
+
+    // Image viewer with pinch-to-zoom
+    implementation 'com.github.chrisbanes:PhotoView:2.3.0'
 
     // Security for EncryptedSharedPreferences
     implementation libs.security.crypto

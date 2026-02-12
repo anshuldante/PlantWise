@@ -29,7 +29,6 @@ public class SettingsFragment extends Fragment {
     private MaterialRadioButton radioGemini;
     private MaterialRadioButton radioOpenAI;
     private MaterialRadioButton radioClaude;
-    private MaterialRadioButton radioPerplexity;
     private TextInputEditText apiKeyEdit;
     private MaterialButton saveButton;
     private TextView statusText;
@@ -38,6 +37,7 @@ public class SettingsFragment extends Fragment {
     private TextView reminderTimeValue;
     private SwitchMaterial pauseRemindersSwitch;
     private KeystoreHelper keystoreHelper;
+    private View encryptionErrorBanner;
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container,
@@ -51,11 +51,12 @@ public class SettingsFragment extends Fragment {
 
         keystoreHelper = new KeystoreHelper(requireContext());
 
+        encryptionErrorBanner = view.findViewById(R.id.encryption_error_banner);
+
         providerGroup = view.findViewById(R.id.radio_provider);
         radioGemini = view.findViewById(R.id.radio_gemini);
         radioOpenAI = view.findViewById(R.id.radio_openai);
         radioClaude = view.findViewById(R.id.radio_claude);
-        radioPerplexity = view.findViewById(R.id.radio_perplexity);
         apiKeyEdit = view.findViewById(R.id.edit_api_key);
         saveButton = view.findViewById(R.id.btn_save_key);
         statusText = view.findViewById(R.id.api_key_status);
@@ -68,8 +69,6 @@ public class SettingsFragment extends Fragment {
         String currentProvider = keystoreHelper.getProvider();
         if (KeystoreHelper.PROVIDER_CLAUDE.equals(currentProvider)) {
             radioClaude.setChecked(true);
-        } else if (KeystoreHelper.PROVIDER_PERPLEXITY.equals(currentProvider)) {
-            radioPerplexity.setChecked(true);
         } else if (KeystoreHelper.PROVIDER_OPENAI.equals(currentProvider)) {
             radioOpenAI.setChecked(true);
         } else {
@@ -79,6 +78,18 @@ public class SettingsFragment extends Fragment {
         updateInfoText();
         updateStatus();
         updateReminderSettings();
+
+        // Check encryption health and show banner if unhealthy
+        if (!keystoreHelper.isEncryptionHealthy()) {
+            encryptionErrorBanner.setVisibility(View.VISIBLE);
+            saveButton.setEnabled(false);
+            apiKeyEdit.setEnabled(false);
+        }
+
+        // Set up dismiss button for encryption error banner
+        view.findViewById(R.id.btn_dismiss_encryption_banner).setOnClickListener(v -> {
+            encryptionErrorBanner.setVisibility(View.GONE);
+        });
 
         providerGroup.setOnCheckedChangeListener((group, checkedId) -> {
             updateInfoText();
@@ -143,8 +154,6 @@ public class SettingsFragment extends Fragment {
             apiKeyInfo.setText(R.string.api_key_info_gemini);
         } else if (checkedId == R.id.radio_claude) {
             apiKeyInfo.setText(R.string.api_key_info_claude);
-        } else if (checkedId == R.id.radio_perplexity) {
-            apiKeyInfo.setText(R.string.api_key_info_perplexity);
         } else {
             apiKeyInfo.setText(R.string.api_key_info_openai);
         }
@@ -169,8 +178,6 @@ public class SettingsFragment extends Fragment {
             return KeystoreHelper.PROVIDER_GEMINI;
         } else if (checkedId == R.id.radio_claude) {
             return KeystoreHelper.PROVIDER_CLAUDE;
-        } else if (checkedId == R.id.radio_perplexity) {
-            return KeystoreHelper.PROVIDER_PERPLEXITY;
         } else {
             return KeystoreHelper.PROVIDER_OPENAI;
         }
@@ -181,11 +188,11 @@ public class SettingsFragment extends Fragment {
         String providerName = getProviderDisplayName(provider);
 
         if (keystoreHelper.hasApiKey()) {
-            statusText.setText("Using " + providerName + " - API key configured");
-            // Show masked key hint
             String key = keystoreHelper.getApiKey();
             if (key != null && key.length() > 8) {
-                apiKeyEdit.setHint("..." + key.substring(key.length() - 4));
+                statusText.setText("Using " + providerName + " (..." + key.substring(key.length() - 4) + ")");
+            } else {
+                statusText.setText("Using " + providerName + " - API key configured");
             }
         } else {
             statusText.setText("No API key configured");
@@ -197,8 +204,6 @@ public class SettingsFragment extends Fragment {
             return "Gemini";
         } else if (KeystoreHelper.PROVIDER_CLAUDE.equals(provider)) {
             return "Claude";
-        } else if (KeystoreHelper.PROVIDER_PERPLEXITY.equals(provider)) {
-            return "Perplexity";
         } else {
             return "ChatGPT";
         }
@@ -211,8 +216,13 @@ public class SettingsFragment extends Fragment {
         // Save API key if provided
         String key = apiKeyEdit.getText() != null ? apiKeyEdit.getText().toString().trim() : "";
         if (!key.isEmpty()) {
-            keystoreHelper.saveApiKey(key);
-            apiKeyEdit.setText("");
+            try {
+                keystoreHelper.saveApiKey(key);
+                apiKeyEdit.setText("");
+            } catch (IllegalStateException e) {
+                Toast.makeText(requireContext(), R.string.secure_storage_unavailable, Toast.LENGTH_LONG).show();
+                return;
+            }
         }
 
         Toast.makeText(requireContext(), R.string.api_key_saved, Toast.LENGTH_SHORT).show();

@@ -10,6 +10,10 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import android.content.Context;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
 import android.net.Uri;
 
 import com.leafiq.app.ai.AIProvider;
@@ -33,6 +37,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class AnalyzePlantUseCaseTest {
 
+    private Context mockContext;
     private ImagePreprocessor mockPreprocessor;
     private AIAnalysisService mockAnalysisService;
     private PlantRepository mockRepository;
@@ -46,14 +51,26 @@ public class AnalyzePlantUseCaseTest {
 
     @Before
     public void setUp() {
+        mockContext = mock(Context.class);
         mockPreprocessor = mock(ImagePreprocessor.class);
         mockAnalysisService = mock(AIAnalysisService.class);
         mockRepository = mock(PlantRepository.class);
         mockProvider = mock(AIProvider.class);
         mockUri = mock(Uri.class);
 
+        // Mock network connectivity as available by default
+        ConnectivityManager mockConnectivityManager = mock(ConnectivityManager.class);
+        Network mockNetwork = mock(Network.class);
+        NetworkCapabilities mockCapabilities = mock(NetworkCapabilities.class);
+
+        when(mockContext.getSystemService(Context.CONNECTIVITY_SERVICE)).thenReturn(mockConnectivityManager);
+        when(mockConnectivityManager.getActiveNetwork()).thenReturn(mockNetwork);
+        when(mockConnectivityManager.getNetworkCapabilities(mockNetwork)).thenReturn(mockCapabilities);
+        when(mockCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)).thenReturn(true);
+        when(mockCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)).thenReturn(true);
+
         useCase = new AnalyzePlantUseCase(
-                mockPreprocessor, mockAnalysisService, mockRepository, synchronousExecutor);
+                mockContext, mockPreprocessor, mockAnalysisService, mockRepository, synchronousExecutor);
     }
 
     @Test
@@ -194,7 +211,8 @@ public class AnalyzePlantUseCaseTest {
 
         useCase.execute(mockUri, null, mockProvider, callback);
 
-        assertThat(capturedError.get()).contains("Failed to process image");
+        // Error now classified by NetworkUtils
+        assertThat(capturedError.get()).contains("Analysis failed");
         assertThat(capturedError.get()).contains("File not found");
     }
 
@@ -203,7 +221,7 @@ public class AnalyzePlantUseCaseTest {
         when(mockAnalysisService.supportsVision(mockProvider)).thenReturn(true);
         when(mockPreprocessor.prepareForApi(mockUri)).thenReturn("base64data");
         when(mockAnalysisService.analyze(any(), anyString(), isNull(), isNull(), isNull()))
-                .thenThrow(new AIProviderException("Rate limited"));
+                .thenThrow(new AIProviderException("Rate limited", null, 429));
 
         AtomicReference<String> capturedError = new AtomicReference<>();
         AnalyzePlantUseCase.Callback callback = new AnalyzePlantUseCase.Callback() {
@@ -221,8 +239,8 @@ public class AnalyzePlantUseCaseTest {
 
         useCase.execute(mockUri, null, mockProvider, callback);
 
-        assertThat(capturedError.get()).contains("Analysis failed");
-        assertThat(capturedError.get()).contains("Rate limited");
+        // Error now classified by NetworkUtils - 429 becomes "Too many requests"
+        assertThat(capturedError.get()).contains("Too many requests");
     }
 
     @Test
@@ -234,7 +252,7 @@ public class AnalyzePlantUseCaseTest {
         };
 
         AnalyzePlantUseCase trackingUseCase = new AnalyzePlantUseCase(
-                mockPreprocessor, mockAnalysisService, mockRepository, trackingExecutor);
+                mockContext, mockPreprocessor, mockAnalysisService, mockRepository, trackingExecutor);
 
         when(mockAnalysisService.supportsVision(mockProvider)).thenReturn(false);
         when(mockProvider.getDisplayName()).thenReturn("Test");
@@ -368,7 +386,8 @@ public class AnalyzePlantUseCaseTest {
 
         useCase.executeWithCorrections(mockUri, null, "Rose", null, mockProvider, callback);
 
-        assertThat(capturedError.get()).contains("Failed to process image");
+        // Error now classified by NetworkUtils
+        assertThat(capturedError.get()).contains("Analysis failed");
     }
 
     @Test
@@ -377,7 +396,7 @@ public class AnalyzePlantUseCaseTest {
         when(mockPreprocessor.prepareForApi(mockUri)).thenReturn("base64data");
         when(mockAnalysisService.analyzeWithCorrections(
                 any(), anyString(), any(), any(), any(), any()))
-                .thenThrow(new AIProviderException("Provider down"));
+                .thenThrow(new AIProviderException("Provider down", null, 503));
 
         AtomicReference<String> capturedError = new AtomicReference<>();
         AnalyzePlantUseCase.Callback callback = new AnalyzePlantUseCase.Callback() {
@@ -388,7 +407,7 @@ public class AnalyzePlantUseCaseTest {
 
         useCase.executeWithCorrections(mockUri, null, "Rose", null, mockProvider, callback);
 
-        assertThat(capturedError.get()).contains("Re-analysis failed");
-        assertThat(capturedError.get()).contains("Provider down");
+        // Error now classified by NetworkUtils - 503 becomes "Service temporarily unavailable"
+        assertThat(capturedError.get()).contains("Service temporarily unavailable");
     }
 }

@@ -21,6 +21,7 @@
     </com.google.android.material.appbar.AppBarLayout>
 
     <ScrollView
+        android:id="@+id/scroll_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:fillViewport="true">
@@ -30,6 +31,19 @@
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:padding="16dp">
+
+            <!-- Partial Info Banner -->
+            <TextView
+                android:id="@+id/partial_info_banner"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                android:padding="12dp"
+                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:textColor="?android:attr/textColorSecondary"
+                android:background="?attr/colorSurfaceVariant"
+                android:visibility="gone"
+                android:text="Some details couldn't be loaded" />
 
             <!-- Photo Section -->
             <ImageView
@@ -218,6 +232,16 @@
                     android:text="Analyzed on Jan 1, 2024 at 12:00 PM" />
 
                 <TextView
+                    android:id="@+id/re_analyzed_timestamp"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="?android:attr/textColorSecondary"
+                    android:visibility="gone"
+                    android:text="Re-analyzed on Jan 1, 2024 at 12:00 PM" />
+
+                <TextView
                     android:id="@+id/analysis_provider"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -228,6 +252,16 @@
                     android:visibility="gone" />
 
             </LinearLayout>
+
+            <!-- Re-analyze Button -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_reanalyze"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:text="Re-analyze to get full details"
+                android:visibility="gone"
+                style="@style/Widget.Material3.Button.OutlinedButton" />
 
             <!-- Correct This Button -->
             <com.google.android.material.button.MaterialButton

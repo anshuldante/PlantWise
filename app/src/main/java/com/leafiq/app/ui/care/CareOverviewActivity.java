@@ -1,5 +1,6 @@
 package com.leafiq.app.ui.care;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.TextView;
@@ -14,6 +15,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.appbar.MaterialToolbar;
 import com.leafiq.app.R;
 import com.leafiq.app.data.repository.PlantRepository;
+import com.leafiq.app.util.WindowInsetsHelper;
 
 /**
  * Care Overview screen showing today's tasks, upcoming 7-day tasks, and recent completions.
@@ -38,7 +40,15 @@ public class CareOverviewActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // Enable edge-to-edge for transparent navigation bar
+        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+
         setContentView(R.layout.activity_care_overview);
+
+        // Apply bottom insets to scrollable content
+        View scrollView = findViewById(R.id.scroll_view);
+        WindowInsetsHelper.applyBottomInsets(scrollView);
 
         // Setup toolbar
         MaterialToolbar toolbar = findViewById(R.id.toolbar);
@@ -100,7 +110,12 @@ public class CareOverviewActivity extends AppCompatActivity {
 
         // Recent completions
         recentRecycler.setLayoutManager(new LinearLayoutManager(this));
-        recentAdapter = new CareCompletionAdapter(this);
+        recentAdapter = new CareCompletionAdapter(this, item -> {
+            Intent intent = new Intent(CareOverviewActivity.this,
+                com.leafiq.app.ui.detail.PlantDetailActivity.class);
+            intent.putExtra("plant_id", item.plantId);
+            startActivity(intent);
+        });
         recentRecycler.setAdapter(recentAdapter);
     }
 
@@ -143,7 +158,7 @@ public class CareOverviewActivity extends AppCompatActivity {
     }
 
     private void handleDone(CareOverviewViewModel.CareTaskItem item) {
-        viewModel.markComplete(item.schedule.id, new PlantRepository.RepositoryCallback<Void>() {
+        viewModel.markComplete(item.schedule.id, new PlantRepository.RepositoryCallback<>() {
             @Override
             public void onSuccess(Void result) {
                 runOnUiThread(() -> {
@@ -159,9 +174,7 @@ public class CareOverviewActivity extends AppCompatActivity {
 
             @Override
             public void onError(Exception e) {
-                runOnUiThread(() -> {
-                    Toast.makeText(CareOverviewActivity.this, "Error marking complete", Toast.LENGTH_SHORT).show();
-                });
+                runOnUiThread(() -> Toast.makeText(CareOverviewActivity.this, "Error marking complete", Toast.LENGTH_SHORT).show());
             }
         });
     }
@@ -176,23 +189,17 @@ public class CareOverviewActivity extends AppCompatActivity {
 
         new AlertDialog.Builder(this)
                 .setTitle(R.string.choose_snooze)
-                .setItems(options, (dialog, which) -> {
-                    viewModel.snooze(item.schedule.id, which, new PlantRepository.RepositoryCallback<Void>() {
-                        @Override
-                        public void onSuccess(Void result) {
-                            runOnUiThread(() -> {
-                                Toast.makeText(CareOverviewActivity.this, "Snoozed", Toast.LENGTH_SHORT).show();
-                            });
-                        }
+                .setItems(options, (dialog, which) -> viewModel.snooze(item.schedule.id, which, new PlantRepository.RepositoryCallback<>() {
+                    @Override
+                    public void onSuccess(Void result) {
+                        runOnUiThread(() -> Toast.makeText(CareOverviewActivity.this, "Snoozed", Toast.LENGTH_SHORT).show());
+                    }
 
-                        @Override
-                        public void onError(Exception e) {
-                            runOnUiThread(() -> {
-                                Toast.makeText(CareOverviewActivity.this, "Error snoozing", Toast.LENGTH_SHORT).show();
-                            });
-                        }
-                    });
-                })
+                    @Override
+                    public void onError(Exception e) {
+                        runOnUiThread(() -> Toast.makeText(CareOverviewActivity.this, "Error snoozing", Toast.LENGTH_SHORT).show());
+                    }
+                }))
                 .setNegativeButton(R.string.cancel, null)
                 .show();
     }

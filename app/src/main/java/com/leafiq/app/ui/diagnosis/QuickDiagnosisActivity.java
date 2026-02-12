@@ -42,6 +42,8 @@ import com.leafiq.app.util.PhotoQualityChecker;
 
 import java.io.File;
 import java.text.SimpleDateFormat;
+
+import okhttp3.OkHttpClient;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -228,7 +230,8 @@ public class QuickDiagnosisActivity extends AppCompatActivity {
                 KeystoreHelper keystoreHelper = new KeystoreHelper(this);
                 String providerName = keystoreHelper.getProvider();
                 String apiKey = keystoreHelper.getApiKey();
-                AIProvider provider = AIProviderFactory.create(providerName, apiKey);
+                OkHttpClient client = ((LeafIQApplication) getApplication()).getHttpClient();
+                AIProvider provider = AIProviderFactory.create(providerName, apiKey, client);
 
                 // Build quick diagnosis prompt
                 String prompt = PromptBuilder.buildQuickDiagnosisPrompt();
